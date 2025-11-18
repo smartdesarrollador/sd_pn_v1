@@ -10,7 +10,7 @@ Layout de 3 paneles:
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QTextEdit, QScrollArea,
                              QSplitter, QFrame, QComboBox, QSpinBox, QMessageBox,
-                             QColorDialog, QDialog)
+                             QColorDialog, QDialog, QTabWidget, QCheckBox)
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QCursor, QColor
 import sys
@@ -75,6 +75,11 @@ class ProcessBuilderWindow(QWidget):
         # Edit mode state
         self.edit_mode_active = False
         self.process_being_edited = None  # ID of process being edited
+
+        # Tags filter state
+        self.tag_checkboxes = {}  # tag_name -> QCheckBox
+        self.selected_tags = set()  # Selected tag names
+        self.updating_tags_panel = False  # Flag to prevent recursion
 
         self.init_ui()
         self.load_data()
@@ -257,7 +262,7 @@ class ProcessBuilderWindow(QWidget):
         return layout
 
     def create_filter_panel(self) -> QWidget:
-        """Create filter panel (left panel)"""
+        """Create filter panel (left panel) with tabs"""
         panel = QFrame()
         panel.setFrameShape(QFrame.Shape.StyledPanel)
         panel.setStyleSheet("""
@@ -266,28 +271,54 @@ class ProcessBuilderWindow(QWidget):
                 border: 1px solid #3d3d3d;
                 border-radius: 6px;
             }
+            QTabWidget::pane {
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                background-color: #252525;
+            }
+            QTabBar::tab {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                padding: 8px 16px;
+                border: 1px solid #3d3d3d;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                min-width: 80px;
+            }
+            QTabBar::tab:selected {
+                background-color: #007acc;
+                font-weight: bold;
+            }
+            QTabBar::tab:hover {
+                background-color: #3d3d3d;
+            }
         """)
 
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(5, 5, 5, 5)
 
-        # Title
-        title = QLabel("Filtros")
-        title.setStyleSheet("font-size: 12pt; font-weight: bold; color: #007acc;")
-        layout.addWidget(title)
+        # Tab widget
+        tabs = QTabWidget()
+
+        # ===== TAB 1: Filtros =====
+        filters_tab = QWidget()
+        filters_layout = QVBoxLayout(filters_tab)
+        filters_layout.setContentsMargins(10, 10, 10, 10)
+        filters_layout.setSpacing(10)
 
         # Category filter
         cat_label = QLabel("Categoria:")
-        layout.addWidget(cat_label)
+        filters_layout.addWidget(cat_label)
 
         self.category_combo = QComboBox()
         self.category_combo.addItem("Todas las categorias", None)
         self.category_combo.currentIndexChanged.connect(self.on_filter_changed)
-        layout.addWidget(self.category_combo)
+        filters_layout.addWidget(self.category_combo)
 
         # Type filter
         type_label = QLabel("Tipo:")
-        layout.addWidget(type_label)
+        filters_layout.addWidget(type_label)
 
         self.type_combo = QComboBox()
         self.type_combo.addItem("Todos los tipos", None)
@@ -296,9 +327,103 @@ class ProcessBuilderWindow(QWidget):
         self.type_combo.addItem("PATH", "PATH")
         self.type_combo.addItem("TEXT", "TEXT")
         self.type_combo.currentIndexChanged.connect(self.on_filter_changed)
-        layout.addWidget(self.type_combo)
+        filters_layout.addWidget(self.type_combo)
 
-        layout.addStretch()
+        filters_layout.addStretch()
+
+        # ===== TAB 2: Tags =====
+        tags_tab = QWidget()
+        tags_layout = QVBoxLayout(tags_tab)
+        tags_layout.setContentsMargins(10, 10, 10, 10)
+        tags_layout.setSpacing(10)
+
+        # Tag count label
+        self.tag_count_label = QLabel("(0 tags)")
+        self.tag_count_label.setStyleSheet("color: #888888; font-size: 10pt;")
+        tags_layout.addWidget(self.tag_count_label)
+
+        # Scroll area for tags
+        tags_scroll = QScrollArea()
+        tags_scroll.setWidgetResizable(True)
+        tags_scroll.setStyleSheet("""
+            QScrollArea {
+                background-color: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background-color: #1e1e1e;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #3a3a3a;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #4a4a4a;
+            }
+        """)
+
+        # Container for tag checkboxes
+        self.tags_container = QWidget()
+        self.tags_container_layout = QVBoxLayout(self.tags_container)
+        self.tags_container_layout.setContentsMargins(0, 5, 0, 5)
+        self.tags_container_layout.setSpacing(6)
+        self.tags_container_layout.addStretch()
+
+        tags_scroll.setWidget(self.tags_container)
+        tags_layout.addWidget(tags_scroll, 1)
+
+        # Action buttons for tags
+        tag_buttons_layout = QVBoxLayout()
+        tag_buttons_layout.setSpacing(6)
+
+        # Select all button
+        self.select_all_tags_btn = QPushButton("✓ Seleccionar Todos")
+        self.select_all_tags_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2a2a2a;
+                color: #ffffff;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border-color: #007acc;
+            }
+        """)
+        self.select_all_tags_btn.clicked.connect(self.select_all_tags)
+        tag_buttons_layout.addWidget(self.select_all_tags_btn)
+
+        # Deselect all button
+        self.deselect_all_tags_btn = QPushButton("✗ Deseleccionar Todos")
+        self.deselect_all_tags_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2a2a2a;
+                color: #ffffff;
+                border: 1px solid #3a3a3a;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border-color: #007acc;
+            }
+        """)
+        self.deselect_all_tags_btn.clicked.connect(self.deselect_all_tags)
+        tag_buttons_layout.addWidget(self.deselect_all_tags_btn)
+
+        tags_layout.addLayout(tag_buttons_layout)
+
+        # Add tabs
+        tabs.addTab(filters_tab, "Filtros")
+        tabs.addTab(tags_tab, "Tags")
+
+        layout.addWidget(tabs)
 
         return panel
 
@@ -667,7 +792,8 @@ class ProcessBuilderWindow(QWidget):
             # Separate regular items from list items
             for item in category.items:
                 if not item.is_list_item():
-                    # Regular item
+                    # Regular item - add category_id dynamically
+                    item.category_id = category.id
                     self.available_items.append(item)
 
             # Get lists for this category
@@ -685,6 +811,10 @@ class ProcessBuilderWindow(QWidget):
         logger.info(f"Loaded {len(self.available_items)} items and {len(self.available_lists)} lists")
         self.filtered_items = self.available_items.copy()
         self.filtered_lists = self.available_lists.copy()
+
+        # Load tags
+        self.load_available_tags()
+
         self.display_items_and_lists()
 
     def load_process_for_editing(self):
@@ -968,7 +1098,9 @@ class ProcessBuilderWindow(QWidget):
 
         # Apply type filter to items (lists don't have type)
         if selected_type is not None:
-            filtered_items = [item for item in filtered_items if item.type == selected_type]
+            # item.type is an ItemType enum, need to compare with .value
+            filtered_items = [item for item in filtered_items
+                           if item.type.value.upper() == selected_type.upper()]
 
         # Apply search filter
         if search_query:
@@ -980,6 +1112,19 @@ class ProcessBuilderWindow(QWidget):
             # Filter lists by list_group name
             filtered_lists = [lst for lst in filtered_lists
                            if search_query in lst.get('list_group', '').lower()]
+
+        # Update tags panel with tags from currently filtered items
+        # This happens BEFORE applying tag filter
+        self.update_tags_panel(filtered_items)
+
+        # Apply tags filter
+        if self.selected_tags:
+            # Filter items that have at least one of the selected tags
+            filtered_items = [
+                item for item in filtered_items
+                if hasattr(item, 'tags') and item.tags and
+                any(tag in self.selected_tags for tag in item.tags)
+            ]
 
         self.filtered_items = filtered_items
         self.filtered_lists = filtered_lists
@@ -1380,6 +1525,119 @@ class ProcessBuilderWindow(QWidget):
 
         self.window_closed.emit()
         event.accept()
+
+    # ==================== TAGS FILTER METHODS ====================
+
+    def load_available_tags(self):
+        """Load all available tags from ALL items and create checkboxes (initial load)"""
+        self.update_tags_panel(self.available_items)
+
+    def update_tags_panel(self, items_to_analyze):
+        """Update tags panel based on provided items (dynamic update)"""
+        # Set flag to prevent recursion
+        self.updating_tags_panel = True
+
+        # Store current selections before clearing
+        previously_selected = self.selected_tags.copy()
+
+        # Clear existing checkboxes
+        while self.tags_container_layout.count() > 1:  # Keep stretch
+            item = self.tags_container_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Collect all unique tags from provided items
+        all_tags = set()
+        for item in items_to_analyze:
+            if hasattr(item, 'tags') and item.tags:
+                all_tags.update(item.tags)
+
+        # Sort tags alphabetically
+        sorted_tags = sorted(all_tags)
+
+        # Recreate tag_checkboxes dict
+        self.tag_checkboxes.clear()
+
+        # Create checkbox for each tag
+        for tag in sorted_tags:
+            checkbox = QCheckBox(f"🏷️ {tag}")
+            checkbox.setStyleSheet("""
+                QCheckBox {
+                    color: #ffffff;
+                    font-size: 10pt;
+                    padding: 4px;
+                    spacing: 6px;
+                }
+                QCheckBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid #555555;
+                    border-radius: 3px;
+                    background-color: #2d2d2d;
+                }
+                QCheckBox::indicator:hover {
+                    border-color: #007acc;
+                    background-color: #353535;
+                }
+                QCheckBox::indicator:checked {
+                    background-color: #007acc;
+                    border-color: #007acc;
+                    image: url(none);
+                }
+                QCheckBox:hover {
+                    background-color: #2a2a2a;
+                    border-radius: 4px;
+                }
+            """)
+
+            # Restore previous selection if this tag was selected AND tag still exists
+            if tag in previously_selected:
+                checkbox.setChecked(True)
+
+            # Connect signal
+            checkbox.stateChanged.connect(self.on_tag_selection_changed)
+
+            self.tags_container_layout.insertWidget(
+                self.tags_container_layout.count() - 1,  # Before stretch
+                checkbox
+            )
+            self.tag_checkboxes[tag] = checkbox
+
+        # Update count label
+        self.tag_count_label.setText(f"({len(sorted_tags)} tags)")
+
+        # Update selected_tags to only include tags that still exist
+        self.selected_tags = previously_selected.intersection(all_tags)
+
+        # Clear flag
+        self.updating_tags_panel = False
+
+        logger.debug(f"Updated tags panel with {len(sorted_tags)} tags from {len(items_to_analyze)} items")
+
+    def on_tag_selection_changed(self, state):
+        """Handle tag checkbox state change"""
+        # Ignore if we're currently updating the tags panel (prevents recursion)
+        if self.updating_tags_panel:
+            return
+
+        # Update selected tags set
+        self.selected_tags.clear()
+        for tag, checkbox in self.tag_checkboxes.items():
+            if checkbox.isChecked():
+                self.selected_tags.add(tag)
+
+        # Apply filters
+        self.apply_filters()
+
+    def select_all_tags(self):
+        """Select all tag checkboxes"""
+        for checkbox in self.tag_checkboxes.values():
+            checkbox.setChecked(True)
+
+    def deselect_all_tags(self):
+        """Deselect all tag checkboxes"""
+        for checkbox in self.tag_checkboxes.values():
+            checkbox.setChecked(False)
 
     # ==================== Component Methods ====================
 
