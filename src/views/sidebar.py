@@ -317,8 +317,8 @@ class Sidebar(QWidget):
         self.quick_create_button.clicked.connect(self.on_quick_create_clicked)
         main_layout.addWidget(self.quick_create_button)
 
-        # Web Static Create button (🌐)
-        self.web_static_button = QPushButton("🌐")
+        # Web Static Create button (📱)
+        self.web_static_button = QPushButton("📱")
         self.web_static_button.setFixedSize(70, 40)
         self.web_static_button.setToolTip("Crear Item Web Estático")
         self.web_static_button.setCursor(Qt.CursorShape.PointingHandCursor)
