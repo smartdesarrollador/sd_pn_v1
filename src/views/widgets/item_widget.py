@@ -37,10 +37,14 @@ class ItemButton(QFrame):
     table_view_requested = pyqtSignal(str)  # table_name to view complete table
     web_static_render_requested = pyqtSignal(object)  # item to render as WEB_STATIC
 
-    def __init__(self, item: Item, show_category: bool = False, parent=None):
+    def __init__(self, item: Item, show_category: bool = False, show_labels: bool = True, show_tags: bool = False, show_content: bool = False, show_description: bool = False, parent=None):
         super().__init__(parent)
         self.item = item
         self.show_category = show_category  # Show category badge in global search
+        self.show_labels = show_labels  # Show labels (default: True)
+        self.show_tags = show_tags  # Show tags (default: False)
+        self.show_content = show_content  # Show content preview (default: False)
+        self.show_description = show_description  # Show description (default: False)
         self.is_copied = False
         self.is_revealed = False  # Track if sensitive content is revealed
         self.reveal_timer = None  # Timer for auto-hide
@@ -149,9 +153,9 @@ class ItemButton(QFrame):
         self.type_icon.setToolTip(f"Tipo: {self.item.type}")
         main_layout.addWidget(self.type_icon)
 
-        # 2. Item Label (expandable, elided if too long)
-        label_text = self.get_display_label()
-        self.label_widget = QLabel(label_text)
+        # 2. Item Label/Tags/Content (expandable, elided if too long)
+        display_text = self.get_display_text()
+        self.label_widget = QLabel(display_text)
         self.label_widget.setStyleSheet(PanelStyles.get_item_label_style())
         # Enable text eliding for long labels
         self.label_widget.setSizePolicy(
@@ -805,8 +809,68 @@ class ItemButton(QFrame):
                 }
             """)
 
+    def get_display_text(self):
+        """Get display text based on selected display options (labels/tags/content/description)"""
+        MAX_CONTENT_LENGTH = 100  # Max characters for content preview
+        MAX_DESCRIPTION_LENGTH = 80  # Max characters for description
+
+        display_parts = []
+
+        # Get file type icon if this is a PATH item with file metadata
+        file_icon = ""
+        if (self.item.type == ItemType.PATH and
+            hasattr(self.item, 'file_hash') and self.item.file_hash and
+            hasattr(self.item, 'get_file_type_icon')):
+            file_icon = self.item.get_file_type_icon() + " "
+
+        # 1. Show Labels (if enabled)
+        if self.show_labels:
+            display_parts.append(f"{file_icon}{self.item.label}")
+
+        # 2. Show Description (if enabled and item has description)
+        if self.show_description and hasattr(self.item, 'description') and self.item.description:
+            description = self.item.description[:MAX_DESCRIPTION_LENGTH]
+            if len(self.item.description) > MAX_DESCRIPTION_LENGTH:
+                description += "..."
+            display_parts.append(f"📝 {description}")
+
+        # 3. Show Tags (if enabled and item has tags)
+        if self.show_tags and hasattr(self.item, 'tags') and self.item.tags:
+            if isinstance(self.item.tags, list):
+                tags_text = ", ".join(self.item.tags)
+            else:
+                tags_text = str(self.item.tags)
+            display_parts.append(f"🏷️ {tags_text}")
+
+        # 4. Show Content (if enabled)
+        if self.show_content:
+            # Handle sensitive content
+            if hasattr(self.item, 'is_sensitive') and self.item.is_sensitive and not self.is_revealed:
+                # Obfuscate sensitive content
+                display_parts.append("🔒 ********")
+            elif hasattr(self.item, 'is_sensitive') and self.item.is_sensitive and self.is_revealed:
+                # Show revealed sensitive content (truncated)
+                content = self.item.content[:MAX_CONTENT_LENGTH]
+                if len(self.item.content) > MAX_CONTENT_LENGTH:
+                    content += "..."
+                display_parts.append(f"🔓 {content}")
+            else:
+                # Show normal content (truncated)
+                if self.item.content:
+                    content = self.item.content[:MAX_CONTENT_LENGTH]
+                    if len(self.item.content) > MAX_CONTENT_LENGTH:
+                        content += "..."
+                    display_parts.append(f"📄 {content}")
+
+        # Join all parts with separator
+        if display_parts:
+            return " | ".join(display_parts)
+        else:
+            # Fallback: show at least the label
+            return f"{file_icon}{self.item.label}"
+
     def get_display_label(self):
-        """Get display label (ofuscado si es sensible y no revelado)"""
+        """Get display label (ofuscado si es sensible y no revelado) - DEPRECATED, use get_display_text()"""
         # Get file type icon if this is a PATH item with file metadata
         file_icon = ""
         if (self.item.type == ItemType.PATH and
@@ -830,8 +894,8 @@ class ItemButton(QFrame):
         """Toggle reveal/hide sensitive content"""
         self.is_revealed = not self.is_revealed
 
-        # Update label
-        self.label_widget.setText(self.get_display_label())
+        # Update label with new display text
+        self.label_widget.setText(self.get_display_text())
 
         if self.is_revealed:
             # Cambiar icono del boton
