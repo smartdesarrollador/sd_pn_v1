@@ -2073,20 +2073,11 @@ class DBManager:
 
         results = self.execute_query(query, tuple(params))
 
-        # Parsear tags y filtrar por tags si se especificaron
+        # Cargar tags desde estructura relacional y filtrar por tags si se especificaron
         filtered_results = []
         for item in results:
-            # Parsear tags
-            if item['tags']:
-                try:
-                    item['tags'] = json.loads(item['tags'])
-                except json.JSONDecodeError:
-                    if isinstance(item['tags'], str):
-                        item['tags'] = [tag.strip() for tag in item['tags'].split(',') if tag.strip()]
-                    else:
-                        item['tags'] = []
-            else:
-                item['tags'] = []
+            # Cargar tags desde estructura relacional
+            item['tags'] = self.get_tags_by_item(item['id'])
 
             # Filtrar por tags si se especificaron
             if tags:

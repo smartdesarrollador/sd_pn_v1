@@ -709,9 +709,13 @@ class ImagePreviewDialog(QDialog):
             # Actualizar en BD
             self.controller.db.update_item(item_id, **updated_data)
 
-            # Actualizar item_data local
-            for key, value in updated_data.items():
-                self.item_data[key] = value
+            # Recargar item completo desde BD para obtener tags actualizados
+            # (los tags se actualizan mediante estructura relacional)
+            updated_item = self.controller.db.get_item(item_id)
+            if updated_item:
+                # Actualizar item_data con datos frescos de la BD
+                self.item_data.update(updated_item)
+                logger.debug(f"Item data reloaded from DB with tags: {updated_item.get('tags', [])}")
 
             # Recargar metadatos en el panel
             # Limpiar layout actual
