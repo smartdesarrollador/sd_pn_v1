@@ -446,13 +446,15 @@ class ConfigStep(QWidget):
             tags = self.tags_selector.text().strip()
 
         # Crear defaults
+        # NOTA: is_list y list_group son campos legacy para compatibilidad
+        # El código que procesa estos defaults debe convertirlos a list_id
         defaults = BulkItemDefaults(
             type=self.type_combo.currentText(),
             tags=tags,
             is_favorite=1 if self.is_favorite_check.isChecked() else 0,
             is_sensitive=1 if self.is_sensitive_check.isChecked() else 0,
-            is_list=1 if self.is_list_check.isChecked() else 0,
-            list_group=self.list_name_input.text().strip() if self.is_list_check.isChecked() else None
+            is_list=1 if self.is_list_check.isChecked() else 0,  # Legacy
+            list_group=self.list_name_input.text().strip() if self.is_list_check.isChecked() else None  # Legacy
         )
 
         # Crear config

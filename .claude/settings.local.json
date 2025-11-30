@@ -58,7 +58,9 @@
       "Bash(start python:*)",
       "Bash(if not exist \"src\\views\\image_gallery\" mkdir \"src\\views\\image_gallery\")",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(if not exist \"backups\" mkdir \"backups\")",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

@@ -700,19 +700,18 @@ class FloatingPanel(QWidget):
             """)
             self.items_layout.insertWidget(self.items_layout.count() - 1, lists_header)
 
-            # Add lists (solo las primeras 100)
+            # Add lists (solo las primeras 100) - v3.1.0
             for idx, list_data in enumerate(lists_to_display):
-                logger.debug(f"Creating list widget {idx+1}/{len(lists_to_display)}: {list_data.get('list_group')}")
+                lista_id = list_data.get('id', 0)
+                list_name = list_data.get('name', 'Sin nombre')
+                logger.debug(f"Creating list widget {idx+1}/{len(lists_to_display)}: lista_id={lista_id}, name='{list_name}'")
 
-                # Obtener items de la lista
+                # Obtener items de la lista (v3.1.0: usa lista_id)
                 list_items = []
-                if self.list_controller and hasattr(self.current_category, 'id'):
-                    list_items = self.list_controller.get_list_items(
-                        self.current_category.id,
-                        list_data.get('list_group')
-                    )
+                if self.list_controller:
+                    list_items = self.list_controller.get_list_items(lista_id)
 
-                # Crear ListWidget
+                # Crear ListWidget (v3.1.0: list_data contiene id y name)
                 list_widget = ListWidget(
                     list_data=list_data,
                     category_id=int(self.current_category.id) if hasattr(self.current_category, 'id') and self.current_category.id else None,
@@ -804,9 +803,9 @@ class FloatingPanel(QWidget):
 
     # ========== LIST WIDGET HANDLERS ==========
 
-    def on_list_executed(self, list_group: str, category_id: int):
-        """Handle list execution request from ListWidget"""
-        logger.info(f"Executing list '{list_group}' from category {category_id}")
+    def on_list_executed(self, lista_id: int, category_id: int):
+        """Handle list execution request from ListWidget (v3.1.0)"""
+        logger.info(f"Executing lista_id={lista_id} from category {category_id}")
 
         if not self.list_controller:
             logger.warning("No ListController available for execution")
@@ -815,22 +814,21 @@ class FloatingPanel(QWidget):
         try:
             # Ejecutar lista secuencialmente con delay de 500ms
             success = self.list_controller.execute_list_sequentially(
-                category_id=category_id,
-                list_group=list_group,
+                lista_id=lista_id,
                 delay_ms=500
             )
 
             if success:
-                logger.info(f"List '{list_group}' execution started successfully")
+                logger.info(f"lista_id={lista_id} execution started successfully")
             else:
-                logger.warning(f"Failed to start list '{list_group}' execution")
+                logger.warning(f"Failed to start lista_id={lista_id} execution")
 
         except Exception as e:
-            logger.error(f"Error executing list '{list_group}': {e}", exc_info=True)
+            logger.error(f"Error executing lista_id={lista_id}: {e}", exc_info=True)
 
-    def on_list_edit_requested(self, list_group: str, category_id: int):
-        """Handle list edit request from ListWidget"""
-        logger.info(f"Edit requested for list '{list_group}' from category {category_id}")
+    def on_list_edit_requested(self, lista_id: int, category_id: int):
+        """Handle list edit request from ListWidget (v3.1.0)"""
+        logger.info(f"Edit requested for lista_id={lista_id} from category {category_id}")
         logger.info(f"Current category: {self.current_category.name if self.current_category else 'None'}")
         logger.info(f"Current category ID: {self.current_category.id if hasattr(self.current_category, 'id') else 'No ID attribute'}")
 
@@ -851,12 +849,12 @@ class FloatingPanel(QWidget):
                 categories = self.config_manager.get_categories()
                 logger.info(f"Loaded {len(categories)} categories for editor dialog")
 
-            # Crear y mostrar dialog de edición
+            # Crear y mostrar dialog de edición (v3.1.0: usa lista_id)
             editor_dialog = ListEditorDialog(
                 list_controller=self.list_controller,
                 categories=categories,
                 category_id=category_id,
-                list_group=list_group,
+                lista_id=lista_id,
                 parent=self
             )
 
@@ -871,20 +869,20 @@ class FloatingPanel(QWidget):
         except Exception as e:
             logger.error(f"Error opening list editor: {e}", exc_info=True)
 
-    def on_list_delete_requested(self, list_group: str, category_id: int):
-        """Handle list deletion request from ListWidget"""
-        logger.info(f"Delete requested for list '{list_group}' from category {category_id}")
+    def on_list_delete_requested(self, lista_id: int, category_id: int):
+        """Handle list deletion request from ListWidget (v3.1.0)"""
+        logger.info(f"Delete requested for lista_id={lista_id} from category {category_id}")
 
         if not self.list_controller:
             logger.warning("No ListController available for deletion")
             return
 
         try:
-            # Eliminar la lista
-            success, message = self.list_controller.delete_list(category_id, list_group)
+            # Eliminar la lista (v3.1.0: usa lista_id)
+            success, message = self.list_controller.delete_list(lista_id)
 
             if success:
-                logger.info(f"List '{list_group}' deleted successfully")
+                logger.info(f"lista_id={lista_id} deleted successfully")
 
                 # Recargar categoría para reflejar cambios
                 if self.current_category:
@@ -893,14 +891,14 @@ class FloatingPanel(QWidget):
                     self.all_lists = self.list_controller.get_lists(category_id)
                     self.display_items_and_lists(self.all_items, self.all_lists)
             else:
-                logger.warning(f"Failed to delete list '{list_group}': {message}")
+                logger.warning(f"Failed to delete lista_id={lista_id}: {message}")
 
         except Exception as e:
-            logger.error(f"Error deleting list '{list_group}': {e}", exc_info=True)
+            logger.error(f"Error deleting lista_id={lista_id}: {e}", exc_info=True)
 
-    def on_list_copy_all_requested(self, list_group: str, category_id: int):
-        """Handle copy all request from ListWidget"""
-        logger.info(f"Copy all requested for list '{list_group}' from category {category_id}")
+    def on_list_copy_all_requested(self, lista_id: int, category_id: int):
+        """Handle copy all request from ListWidget (v3.1.0)"""
+        logger.info(f"Copy all requested for lista_id={lista_id} from category {category_id}")
 
         if not self.list_controller:
             logger.error("No ListController available for copy operation - Panel was created without controller")
@@ -913,20 +911,19 @@ class FloatingPanel(QWidget):
             return
 
         try:
-            # Copiar todo el contenido de la lista
+            # Copiar todo el contenido de la lista (v3.1.0: usa lista_id)
             success, message = self.list_controller.copy_all_list_items(
-                category_id=category_id,
-                list_group=list_group,
+                lista_id=lista_id,
                 separator='\n'
             )
 
             if success:
-                logger.info(f"All items from list '{list_group}' copied to clipboard")
+                logger.info(f"All items from lista_id={lista_id} copied to clipboard")
             else:
-                logger.warning(f"Failed to copy list '{list_group}': {message}")
+                logger.warning(f"Failed to copy lista_id={lista_id}: {message}")
 
         except Exception as e:
-            logger.error(f"Error copying list '{list_group}': {e}", exc_info=True)
+            logger.error(f"Error copying lista_id={lista_id}: {e}", exc_info=True)
 
     def on_list_item_copied(self, content: str):
         """Handle individual list item copy"""
@@ -1008,9 +1005,9 @@ class FloatingPanel(QWidget):
         except Exception as e:
             logger.error(f"Error opening list creator: {e}", exc_info=True)
 
-    def on_list_created_from_dialog(self, list_name: str, category_id: int, item_ids: list):
-        """Handle list creation from ListCreatorDialog"""
-        logger.info(f"List '{list_name}' created successfully in category {category_id} with {len(item_ids)} items")
+    def on_list_created_from_dialog(self, lista_id: int, category_id: int, item_ids: list):
+        """Handle list creation from ListCreatorDialog (v3.1.0)"""
+        logger.info(f"lista_id={lista_id} created successfully in category {category_id} with {len(item_ids)} items")
 
         # Recargar la categoría para mostrar la nueva lista
         if self.current_category and hasattr(self.current_category, 'id'):
@@ -1018,9 +1015,9 @@ class FloatingPanel(QWidget):
                 # Recargar items y listas desde la base de datos
                 self.reload_current_category()
 
-    def on_list_updated_from_dialog(self, list_name: str, category_id: int):
-        """Handle list update from ListEditorDialog"""
-        logger.info(f"List '{list_name}' updated successfully in category {category_id}")
+    def on_list_updated_from_dialog(self, lista_id: int, category_id: int):
+        """Handle list update from ListEditorDialog (v3.1.0)"""
+        logger.info(f"lista_id={lista_id} updated successfully in category {category_id}")
 
         # Recargar la categoría para mostrar cambios
         if self.current_category and hasattr(self.current_category, 'id'):
@@ -1090,9 +1087,10 @@ class FloatingPanel(QWidget):
 
             # Buscar en nombres de listas
             query_lower = query.lower()
+            # v3.1.0: usar 'name' en lugar de 'list_group'
             filtered_lists = [
                 list_data for list_data in filtered_lists
-                if query_lower in list_data.get('list_group', '').lower()
+                if query_lower in list_data.get('name', '').lower()
             ]
 
         self.display_items_and_lists(filtered_items, filtered_lists)

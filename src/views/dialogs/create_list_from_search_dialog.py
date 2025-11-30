@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 class CreateListFromSearchDialog(QDialog):
     """Diálogo para crear lista desde búsqueda global"""
 
-    # Señal emitida cuando se crea la lista: (list_name, category_id, item_ids)
-    list_created = pyqtSignal(str, int, list)
+    # Señal emitida cuando se crea la lista (nueva arquitectura v3.1.0)
+    # (lista_id, category_id, item_ids)
+    list_created = pyqtSignal(int, int, list)
 
     def __init__(self, items, db_manager, config_manager, list_controller, parent=None):
         super().__init__(parent)
@@ -206,16 +207,21 @@ class CreateListFromSearchDialog(QDialog):
             QMessageBox.warning(self, "Error", "Debes seleccionar al menos un item")
             return
 
-        # Crear lista usando ListController
+        # Crear lista usando ListController (nueva arquitectura v3.1.0)
         try:
-            self.list_controller.create_list_from_items(
+            success, message, lista_id = self.list_controller.create_list_from_items(
                 list_name=list_name,
                 category_id=int(category_id),
                 item_ids=[int(id) for id in selected_item_ids]
             )
 
-            # Emitir señal
-            self.list_created.emit(list_name, int(category_id), [int(id) for id in selected_item_ids])
+            if not success:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Error", message)
+                return
+
+            # Emitir señal con lista_id (nueva arquitectura v3.1.0)
+            self.list_created.emit(lista_id, int(category_id), [int(id) for id in selected_item_ids])
 
             # Cerrar diálogo
             self.accept()

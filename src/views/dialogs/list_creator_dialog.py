@@ -39,8 +39,8 @@ class ListCreatorDialog(QDialog):
     - Contador de pasos en botón "Crear Lista"
     """
 
-    # Señal emitida cuando se crea la lista exitosamente
-    list_created = pyqtSignal(str, int, list)  # (list_name, category_id, item_ids)
+    # Señal emitida cuando se crea la lista exitosamente (nueva arquitectura v3.1.0)
+    list_created = pyqtSignal(int, int, list)  # (lista_id, category_id, item_ids)
 
     def __init__(self, list_controller: ListController, categories: list,
                  db_path: str = None, selected_category_id: int = None, parent=None):
@@ -494,10 +494,10 @@ class ListCreatorDialog(QDialog):
             self.name_validation_label.setText("⚠ El nombre es demasiado largo (máx 100 caracteres)")
             return
 
-        # Validar unicidad (si hay categoría seleccionada)
+        # Validar unicidad (si hay categoría seleccionada) - v3.1.0
         category_id = self.category_combo.currentData()
         if category_id and text.strip():
-            if not self.list_controller.db.is_list_name_unique(category_id, text.strip()):
+            if not self.list_controller.db.is_list_name_unique_v2(category_id, text.strip()):
                 self.name_validation_label.setText("⚠ Ya existe una lista con este nombre en la categoría")
                 return
 
@@ -586,7 +586,7 @@ class ListCreatorDialog(QDialog):
         return steps_data
 
     def create_list(self):
-        """Crea la lista usando el controlador"""
+        """Crea la lista usando el controlador (nueva arquitectura v3.1.0)"""
         # Validar formulario
         is_valid, error_msg = self.validate_form()
         if not is_valid:
@@ -598,23 +598,24 @@ class ListCreatorDialog(QDialog):
         category_id = self.category_combo.currentData()
         steps_data = self.get_steps_data()
 
-        # Crear lista a través del controlador
-        success, message, item_ids = self.list_controller.create_list(
+        # Crear lista a través del controlador (nueva firma con lista_id)
+        success, message, lista_id, item_ids = self.list_controller.create_list(
             category_id=category_id,
             list_name=list_name,
-            items_data=steps_data
+            items_data=steps_data,
+            description=None  # TODO: Agregar campo description en UI
         )
 
         if success:
             QMessageBox.information(self, "Éxito", message)
-            self.list_created.emit(list_name, category_id, item_ids)
+            self.list_created.emit(lista_id, category_id, item_ids)
             self.accept()
         else:
             QMessageBox.critical(self, "Error", message)
 
-    def on_list_created_signal(self, list_name: str, category_id: int):
+    def on_list_created_signal(self, lista_id: int, category_id: int):
         """Callback cuando el controlador emite señal de lista creada"""
-        logger.info(f"[LIST_CREATOR] List created signal received: {list_name}")
+        logger.info(f"[LIST_CREATOR] List created signal received: lista_id={lista_id}, category={category_id}")
 
     def on_error_signal(self, error_message: str):
         """Callback cuando el controlador emite señal de error"""

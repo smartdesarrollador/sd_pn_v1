@@ -158,12 +158,12 @@ class ListWidget(QFrame):
     - Expandido: Muestra todos los pasos con preview + botones de acción
     """
 
-    # Señales
-    list_executed = pyqtSignal(str, int)  # (list_group, category_id)
-    list_edited = pyqtSignal(str, int)  # (list_group, category_id)
-    list_deleted = pyqtSignal(str, int)  # (list_group, category_id)
+    # Señales (nueva arquitectura v3.1.0)
+    list_executed = pyqtSignal(int, int)  # (lista_id, category_id)
+    list_edited = pyqtSignal(int, int)  # (lista_id, category_id)
+    list_deleted = pyqtSignal(int, int)  # (lista_id, category_id)
     item_copied = pyqtSignal(str)  # (content)
-    copy_all_requested = pyqtSignal(str, int)  # (list_group, category_id)
+    copy_all_requested = pyqtSignal(int, int)  # (lista_id, category_id)
 
     def __init__(self, list_data: Dict[str, Any], category_id: int,
                  list_items: List[Dict[str, Any]], parent=None):
@@ -171,7 +171,8 @@ class ListWidget(QFrame):
         Inicializa el widget de lista
 
         Args:
-            list_data: Diccionario con metadata de la lista (list_group, item_count, etc)
+            list_data: Diccionario con metadata de la lista (nueva arquitectura v3.1.0)
+                      Debe contener: id (lista_id), name, item_count, etc
             category_id: ID de la categoría
             list_items: Lista de items/pasos ordenados
             parent: Widget padre
@@ -182,13 +183,15 @@ class ListWidget(QFrame):
         self.list_items = list_items
         self.is_expanded = False
 
-        self.list_group = list_data.get('list_group', 'Lista sin nombre')
+        # Nueva arquitectura v3.1.0: usar lista_id y name
+        self.lista_id = list_data.get('id', 0)
+        self.list_name = list_data.get('name', 'Lista sin nombre')
         self.item_count = list_data.get('item_count', len(list_items))
 
         self.setup_ui()
         self.apply_styles()
 
-        logger.debug(f"[LIST_WIDGET] Created for '{self.list_group}' ({self.item_count} steps)")
+        logger.debug(f"[LIST_WIDGET] Created for lista_id={self.lista_id}, name='{self.list_name}' ({self.item_count} steps)")
 
     def setup_ui(self):
         """Configura la interfaz del widget"""
@@ -217,7 +220,7 @@ class ListWidget(QFrame):
         first_line.addWidget(icon_label)
 
         # Nombre de la lista
-        name_label = QLabel(self.list_group)
+        name_label = QLabel(self.list_name)
         name_font = QFont()
         name_font.setBold(True)
         name_font.setPointSize(11)
@@ -388,7 +391,7 @@ class ListWidget(QFrame):
         self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.animation.start()
 
-        logger.debug(f"[LIST_WIDGET] Expanded '{self.list_group}'")
+        logger.debug(f"[LIST_WIDGET] Expanded lista_id={self.lista_id}")
 
     def collapse(self):
         """Colapsa el widget para ocultar los pasos"""
@@ -404,7 +407,7 @@ class ListWidget(QFrame):
         self.animation.finished.connect(lambda: self.content_widget.setVisible(False))
         self.animation.start()
 
-        logger.debug(f"[LIST_WIDGET] Collapsed '{self.list_group}'")
+        logger.debug(f"[LIST_WIDGET] Collapsed lista_id={self.lista_id}")
 
     def on_step_copied(self, step_number: int, label: str, content: str):
         """Handler cuando se copia un paso individual"""
@@ -418,18 +421,18 @@ class ListWidget(QFrame):
 
     def on_execute_clicked(self):
         """Handler para ejecutar todos los pasos secuencialmente"""
-        self.list_executed.emit(self.list_group, self.category_id)
-        logger.info(f"[LIST_WIDGET] Execute requested for '{self.list_group}'")
+        self.list_executed.emit(self.lista_id, self.category_id)
+        logger.info(f"[LIST_WIDGET] Execute requested for lista_id={self.lista_id}")
 
     def on_copy_all_clicked(self):
         """Handler para copiar todo el contenido"""
-        self.copy_all_requested.emit(self.list_group, self.category_id)
-        logger.info(f"[LIST_WIDGET] Copy all requested for '{self.list_group}'")
+        self.copy_all_requested.emit(self.lista_id, self.category_id)
+        logger.info(f"[LIST_WIDGET] Copy all requested for lista_id={self.lista_id}")
 
     def on_edit_clicked(self):
         """Handler para editar la lista"""
-        self.list_edited.emit(self.list_group, self.category_id)
-        logger.info(f"[LIST_WIDGET] Edit requested for '{self.list_group}'")
+        self.list_edited.emit(self.lista_id, self.category_id)
+        logger.info(f"[LIST_WIDGET] Edit requested for lista_id={self.lista_id}")
 
     def on_delete_clicked(self):
         """Handler para eliminar la lista"""
@@ -439,18 +442,28 @@ class ListWidget(QFrame):
         reply = QMessageBox.question(
             self,
             "Confirmar eliminación",
-            f"¿Estás seguro de eliminar la lista '{self.list_group}' con {self.item_count} pasos?\n\nEsta acción no se puede deshacer.",
+            f"¿Estás seguro de eliminar la lista '{self.list_name}' con {self.item_count} pasos?\n\nEsta acción no se puede deshacer.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.list_deleted.emit(self.list_group, self.category_id)
-            logger.info(f"[LIST_WIDGET] Delete confirmed for '{self.list_group}'")
+            self.list_deleted.emit(self.lista_id, self.category_id)
+            logger.info(f"[LIST_WIDGET] Delete confirmed for lista_id={self.lista_id}")
 
+    # Nueva arquitectura v3.1.0
+    def get_lista_id(self) -> int:
+        """Retorna el ID de la lista"""
+        return self.lista_id
+
+    def get_list_name(self) -> str:
+        """Retorna el nombre de la lista"""
+        return self.list_name
+
+    # Método legacy (deprecado)
     def get_list_group(self) -> str:
-        """Retorna el nombre del grupo de la lista"""
-        return self.list_group
+        """DEPRECADO: Usar get_list_name() en su lugar"""
+        return self.list_name
 
     def get_category_id(self) -> int:
         """Retorna el ID de categoría"""

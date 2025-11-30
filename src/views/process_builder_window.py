@@ -1164,9 +1164,9 @@ class ProcessBuilderWindow(QWidget):
                            if search_query in item.label.lower() or
                               search_query in (item.content or "").lower()]
 
-            # Filter lists by list_group name
+            # Filter lists by name (v3.1.0: usar 'name' en lugar de 'list_group')
             filtered_lists = [lst for lst in filtered_lists
-                           if search_query in lst.get('list_group', '').lower()]
+                           if search_query in lst.get('name', '').lower()]
 
         # Update tags panel with tags from currently filtered items
         # This happens BEFORE applying tag filter
@@ -1216,8 +1216,8 @@ class ProcessBuilderWindow(QWidget):
         icon_label.setFont(icon_font)
         layout.addWidget(icon_label)
 
-        # List name
-        name_label = QLabel(list_data.get('list_group', 'Lista'))
+        # List name (v3.1.0: usar 'name')
+        name_label = QLabel(list_data.get('name', 'Lista'))
         name_font = QFont()
         name_font.setBold(True)
         name_font.setPointSize(10)
@@ -1257,22 +1257,22 @@ class ProcessBuilderWindow(QWidget):
         self.add_step_to_constructor(step)
 
     def on_list_double_clicked(self, list_data: dict):
-        """Handle double-click on list to add all items to process"""
-        list_group = list_data.get('list_group')
-        category_id = list_data.get('category_id')
+        """Handle double-click on list to add all items to process (v3.1.0)"""
+        lista_id = list_data.get('id')
+        list_name = list_data.get('name', 'Lista')
 
-        logger.info(f"Adding list to process: {list_group}")
+        logger.info(f"Adding list to process: lista_id={lista_id}, name='{list_name}'")
 
         if not self.list_controller:
             logger.error("ListController not available")
             return
 
         try:
-            # Get all items in the list
-            list_items = self.list_controller.get_list_items(category_id, list_group)
+            # Get all items in the list (v3.1.0: usa lista_id)
+            list_items = self.list_controller.get_list_items(lista_id)
 
             if not list_items:
-                logger.warning(f"No items found in list {list_group}")
+                logger.warning(f"No items found in lista_id={lista_id}")
                 return
 
             # Add each item as a step
@@ -1289,7 +1289,7 @@ class ProcessBuilderWindow(QWidget):
                 )
                 self.add_step_to_constructor(step)
 
-            logger.info(f"Added {len(list_items)} items from list {list_group} to process")
+            logger.info(f"Added {len(list_items)} items from lista_id={lista_id} to process")
 
         except Exception as e:
             logger.error(f"Error adding list to process: {e}", exc_info=True)

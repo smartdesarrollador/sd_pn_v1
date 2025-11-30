@@ -297,8 +297,13 @@ class ItemDetailsDialog(QDialog):
             color_display = f"{self.item.color} ■"
             props.append(("Color", color_display))
 
-        if hasattr(self.item, 'list_group') and self.item.list_group:
-            props.append(("Grupo de lista", self.item.list_group))
+        # Nueva arquitectura v3.1.0: mostrar list_id
+        if hasattr(self.item, 'list_id') and self.item.list_id:
+            props.append(("ID de lista", str(self.item.list_id)))
+            props.append(("Orden en lista", str(self.item.orden_lista)))
+        # Compatibilidad con campos legacy
+        elif hasattr(self.item, 'list_group') and self.item.list_group:
+            props.append(("Grupo de lista (legacy)", self.item.list_group))
             props.append(("Orden en lista", str(self.item.orden_lista)))
 
         return props
@@ -395,8 +400,10 @@ class ItemDetailsDialog(QDialog):
             ("Está activo", "✅ Sí" if self.item.is_active else "❌ No"),
         ]
 
-        if hasattr(self.item, 'is_list'):
-            readonly_flags.append(("Es parte de lista", "✅ Sí" if self.item.is_list else "❌ No"))
+        # Nueva arquitectura v3.1.0: mostrar is_list_item() basado en list_id
+        if hasattr(self.item, 'is_list_item'):
+            is_list = self.item.is_list_item()
+            readonly_flags.append(("Es parte de lista", "✅ Sí" if is_list else "❌ No"))
 
         for label, value in readonly_flags:
             flag_layout = QHBoxLayout()

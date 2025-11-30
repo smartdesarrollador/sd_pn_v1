@@ -1238,8 +1238,11 @@ class DBManager:
                  working_dir: str = None, color: str = None,
                  badge: str = None,
                  is_active: bool = True, is_archived: bool = False,
-                 is_list: bool = False, list_group: str = None,
+                 # Nueva arquitectura v3.1.0
+                 list_id: int = None,
                  orden_lista: int = 0,
+                 # Campos legacy (deprecados)
+                 is_list: bool = False, list_group: str = None,
                  # Component fields
                  is_component: bool = False,
                  name_component: str = None,
@@ -1297,12 +1300,12 @@ class DBManager:
 
         query = """
             INSERT INTO items
-            (category_id, label, content, type, icon, is_sensitive, is_favorite, description, working_dir, color, badge, is_active, is_archived, is_list, list_group, orden_lista, is_component, name_component, component_config, file_size, file_type, file_extension, original_filename, file_hash, preview_url, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            (category_id, label, content, type, icon, is_sensitive, is_favorite, description, working_dir, color, badge, is_active, is_archived, list_id, is_list, list_group, orden_lista, is_component, name_component, component_config, file_size, file_type, file_extension, original_filename, file_hash, preview_url, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """
         item_id = self.execute_update(
             query,
-            (category_id, label, content, item_type, icon, is_sensitive, is_favorite, description, working_dir, color, badge, is_active, is_archived, is_list, list_group, orden_lista, is_component, name_component, component_config_json, file_size, file_type, file_extension, original_filename, file_hash, preview_url)
+            (category_id, label, content, item_type, icon, is_sensitive, is_favorite, description, working_dir, color, badge, is_active, is_archived, list_id, is_list, list_group, orden_lista, is_component, name_component, component_config_json, file_size, file_type, file_extension, original_filename, file_hash, preview_url)
         )
 
         # Create tag relationships using relational structure
@@ -1870,8 +1873,8 @@ class DBManager:
         Raises:
             ValueError: Si el nombre ya existe en la categoría
         """
-        # Validar unicidad
-        if not self.is_lista_name_unique(category_id, name):
+        # Validar unicidad (el constraint UNIQUE en BD también lo garantiza)
+        if not self.is_list_name_unique_v2(category_id, name):
             raise ValueError(f"Ya existe una lista con el nombre '{name}' en esta categoría")
 
         with self.transaction() as conn:
@@ -1948,12 +1951,23 @@ class DBManager:
 
         Returns:
             bool: True si se actualizó exitosamente
+
+        Raises:
+            ValueError: Si el nuevo nombre ya existe en la categoría
         """
         allowed_fields = ['name', 'description', 'updated_at', 'last_used', 'use_count']
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
 
         if not updates:
             return False
+
+        # Validar unicidad del nombre si se está actualizando
+        if 'name' in updates:
+            lista_actual = self.get_lista(lista_id)
+            if lista_actual:
+                # Verificar que el nuevo nombre sea único (excluyendo esta lista)
+                if not self.is_list_name_unique_v2(lista_actual['category_id'], updates['name'], exclude_lista_id=lista_id):
+                    raise ValueError(f"Ya existe una lista con el nombre '{updates['name']}' en esta categoría")
 
         # Auto-actualizar updated_at
         if 'updated_at' not in updates:
@@ -2345,7 +2359,9 @@ class DBManager:
 
     def is_list_name_unique(self, category_id: int, list_name: str, exclude_list: str = None) -> bool:
         """
-        Verifica si el nombre de lista es único en la categoría
+        DEPRECADO: Usar is_list_name_unique_v2() en su lugar
+
+        Verifica si el nombre de lista es único en la categoría (método legacy)
 
         Args:
             category_id: ID de la categoría
@@ -2355,6 +2371,12 @@ class DBManager:
         Returns:
             bool: True si el nombre es único, False si ya existe
         """
+        # Redirigir al nuevo método
+        logger.warning("is_list_name_unique() is DEPRECATED - use is_list_name_unique_v2() instead")
+        return self.is_list_name_unique_v2(category_id, list_name, exclude_lista_id=None)
+
+    def __is_list_name_unique_legacy(self, category_id: int, list_name: str, exclude_list: str = None) -> bool:
+        """Implementación legacy original - NO USAR"""
         if exclude_list:
             query = """
                 SELECT COUNT(*) as count
@@ -2372,6 +2394,42 @@ class DBManager:
                 WHERE category_id = ?
                 AND list_group = ?
                 AND is_list = 1
+            """
+            result = self.execute_query(query, (category_id, list_name))
+
+        count = result[0]['count'] if result else 0
+        is_unique = count == 0
+
+        logger.debug(f"Nombre de lista '{list_name}' en categoría {category_id}: {'único' if is_unique else 'ya existe'}")
+        return is_unique
+
+    def is_list_name_unique_v2(self, category_id: int, list_name: str, exclude_lista_id: int = None) -> bool:
+        """
+        Verifica si el nombre de lista es único en la categoría (nueva arquitectura v3.1.0)
+
+        Args:
+            category_id: ID de la categoría
+            list_name: Nombre de lista a verificar
+            exclude_lista_id: ID de lista a excluir (útil para edición)
+
+        Returns:
+            bool: True si el nombre es único, False si ya existe
+        """
+        if exclude_lista_id:
+            query = """
+                SELECT COUNT(*) as count
+                FROM listas
+                WHERE category_id = ?
+                AND name = ?
+                AND id != ?
+            """
+            result = self.execute_query(query, (category_id, list_name, exclude_lista_id))
+        else:
+            query = """
+                SELECT COUNT(*) as count
+                FROM listas
+                WHERE category_id = ?
+                AND name = ?
             """
             result = self.execute_query(query, (category_id, list_name))
 

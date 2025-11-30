@@ -1300,8 +1300,9 @@ class AdvancedFilterPanel(QWidget):
         if self.no_tags_checkbox.isChecked():
             filters['has_tags'] = False
 
+        # Nueva arquitectura v3.1.0: filtrar por items con list_id
         if self.lists_only_checkbox.isChecked():
-            filters['is_list'] = True
+            filters['is_list_item'] = True
 
         logger.debug(f"Collected filters: {filters}")
 

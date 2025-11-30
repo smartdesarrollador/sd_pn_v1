@@ -264,6 +264,34 @@ class AIBulkItemManager:
         # Inserción en transacción
         try:
             with self.db.transaction() as conn:
+                # Si los items son de lista, crear la lista primero en tabla listas
+                lista_id = None
+                if selected_items and selected_items[0].is_list == 1 and selected_items[0].list_group:
+                    list_name = selected_items[0].list_group
+                    list_description = f"Lista creada desde IA Bulk Wizard"
+
+                    try:
+                        lista_id = self.db.create_lista(
+                            category_id=category_id,
+                            name=list_name,
+                            description=list_description
+                        )
+                        logger.info(f"Created lista record: id={lista_id}, name='{list_name}'")
+                    except ValueError as e:
+                        # Si ya existe una lista con ese nombre, intentar obtenerla
+                        logger.warning(f"Lista '{list_name}' may already exist: {e}")
+                        # Buscar lista existente
+                        existing_listas = self.db.get_listas_by_category_new(category_id)
+                        for lista in existing_listas:
+                            if lista['name'] == list_name:
+                                lista_id = lista['id']
+                                logger.info(f"Using existing lista: id={lista_id}")
+                                break
+
+                        if lista_id is None:
+                            # Si no se pudo crear ni encontrar, lanzar error
+                            raise ValueError(f"No se pudo crear la lista '{list_name}': {e}")
+
                 # Si los items son de lista, asignar orden secuencial (comenzando desde 1)
                 list_order_counter = 1
 
@@ -274,13 +302,16 @@ class AIBulkItemManager:
                         # Ej: "git,deploy,automation" → ["git", "deploy", "automation"]
                         tags_list = [tag.strip() for tag in item.tags.split(',') if tag.strip()] if item.tags else []
 
-                        # Asignar orden_lista secuencial si es lista
+                        # Asignar orden_lista y list_id si es lista
                         orden_lista = None
-                        if item.is_list == 1:
+                        item_list_id = None
+                        if item.is_list == 1 and lista_id:
+                            item_list_id = lista_id  # Usar lista_id de la nueva arquitectura
                             orden_lista = item.orden_lista if item.orden_lista is not None else list_order_counter
                             list_order_counter += 1
 
                         # Crear item usando el método del DBManager
+                        # IMPORTANTE: Usar nueva arquitectura (list_id) en lugar de legacy (is_list, list_group)
                         item_id = self.db.add_item(
                             category_id=category_id,
                             label=item.label,
@@ -292,9 +323,12 @@ class AIBulkItemManager:
                             color=item.color,
                             is_sensitive=item.is_sensitive,
                             is_favorite=item.is_favorite,
+                            # Nueva arquitectura v3.1.0
+                            list_id=item_list_id,
+                            orden_lista=orden_lista,
+                            # Legacy (para compatibilidad)
                             is_list=item.is_list,
                             list_group=item.list_group,
-                            orden_lista=orden_lista,
                             working_dir=item.working_dir,
                             badge=item.badge
                         )
@@ -304,7 +338,7 @@ class AIBulkItemManager:
                         logger.debug(
                             f"Created item {item_id}: '{item.label}' "
                             f"(type: {item.type}, sensitive: {item.is_sensitive}, "
-                            f"is_list: {item.is_list}, list_group: {item.list_group})"
+                            f"list_id: {item_list_id}, orden: {orden_lista})"
                         )
 
                     except Exception as e:

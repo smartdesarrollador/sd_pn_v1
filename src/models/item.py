@@ -33,10 +33,12 @@ class Item:
         color: Optional[str] = None,
         is_active: bool = True,
         is_archived: bool = False,
-        # Nuevos campos para listas avanzadas
+        # Campos para listas avanzadas (nueva arquitectura v3.1.0)
+        list_id: Optional[int] = None,
+        orden_lista: int = 0,
+        # Campos legacy (deprecados - mantener para compatibilidad durante migración)
         is_list: bool = False,
         list_group: Optional[str] = None,
-        orden_lista: int = 0,
         # Campos de componentes visuales
         is_component: bool = False,
         name_component: Optional[str] = None,
@@ -61,10 +63,12 @@ class Item:
         self.color = color  # Color para identificación visual
         self.is_active = is_active  # Si el item está activo (puede usarse)
         self.is_archived = is_archived  # Si el item está archivado (oculto por defecto)
-        # Campos de listas avanzadas
-        self.is_list = is_list  # Indica si este item es parte de una lista
-        self.list_group = list_group  # Nombre/identificador del grupo de lista
-        self.orden_lista = orden_lista  # Posición del item dentro de la lista
+        # Campos de listas avanzadas (nueva arquitectura v3.1.0)
+        self.list_id = list_id  # FK a tabla listas (None si no es parte de lista)
+        self.orden_lista = orden_lista  # Posición del item dentro de la lista (1, 2, 3...)
+        # Campos legacy (deprecados - solo para compatibilidad durante migración)
+        self.is_list = is_list  # DEPRECADO: usar list_id is not None
+        self.list_group = list_group  # DEPRECADO: nombre ahora en tabla listas
         # Campos de componentes visuales
         self.is_component = is_component  # Indica si este item es un componente visual
         self.name_component = name_component  # Tipo de componente (separador, nota, alerta, grupo)
@@ -108,10 +112,12 @@ class Item:
             "color": self.color,
             "is_active": self.is_active,
             "is_archived": self.is_archived,
-            # Campos de listas avanzadas
+            # Campos de listas avanzadas (nueva arquitectura v3.1.0)
+            "list_id": self.list_id,
+            "orden_lista": self.orden_lista,
+            # Campos legacy (deprecados)
             "is_list": self.is_list,
             "list_group": self.list_group,
-            "orden_lista": self.orden_lista,
             # Campos de componentes visuales
             "is_component": self.is_component,
             "name_component": self.name_component,
@@ -147,10 +153,12 @@ class Item:
             color=data.get("color"),
             is_active=data.get("is_active", True),
             is_archived=data.get("is_archived", False),
-            # Campos de listas avanzadas
+            # Campos de listas avanzadas (nueva arquitectura v3.1.0)
+            list_id=data.get("list_id"),
+            orden_lista=data.get("orden_lista", 0),
+            # Campos legacy (deprecados)
             is_list=data.get("is_list", False),
             list_group=data.get("list_group"),
-            orden_lista=data.get("orden_lista", 0),
             # Campos de componentes visuales
             is_component=data.get("is_component", False),
             name_component=data.get("name_component"),
@@ -188,36 +196,62 @@ class Item:
         """Desactivar el item (no puede ser usado)"""
         self.is_active = False
 
-    # Métodos para listas avanzadas
+    # Métodos para listas avanzadas (nueva arquitectura v3.1.0)
     def is_list_item(self) -> bool:
-        """Retorna True si este item es parte de una lista"""
-        return self.is_list == True or self.is_list == 1
+        """
+        Retorna True si este item es parte de una lista
 
-    def get_list_group(self) -> Optional[str]:
-        """Retorna el nombre del grupo de lista al que pertenece este item (o None)"""
-        return self.list_group if self.is_list_item() else None
+        Returns:
+            bool: True si el item pertenece a una lista (list_id is not None)
+        """
+        return self.list_id is not None
+
+    def get_list_id(self) -> Optional[int]:
+        """
+        Retorna el ID de la lista a la que pertenece este item
+
+        Returns:
+            Optional[int]: list_id o None si no pertenece a ninguna lista
+        """
+        return self.list_id if self.is_list_item() else None
 
     def get_orden_lista(self) -> int:
-        """Retorna la posición de este item dentro de su lista"""
+        """
+        Retorna la posición de este item dentro de su lista
+
+        Returns:
+            int: Posición (1, 2, 3...) o 0 si no es parte de lista
+        """
         return self.orden_lista if self.is_list_item() else 0
 
-    def set_as_list_item(self, list_group: str, orden: int) -> None:
+    def set_as_list_item(self, list_id: int, orden: int) -> None:
         """
         Configura este item como parte de una lista
 
         Args:
-            list_group: Nombre/identificador del grupo de lista
+            list_id: ID de la lista (FK a tabla listas)
             orden: Posición del item dentro de la lista (1, 2, 3...)
         """
-        self.is_list = True
-        self.list_group = list_group
+        self.list_id = list_id
         self.orden_lista = orden
+        # Actualizar campos legacy para compatibilidad backward
+        self.is_list = True
 
     def remove_from_list(self) -> None:
         """Remueve este item de cualquier lista (lo convierte en item normal)"""
+        self.list_id = None
+        self.orden_lista = 0
+        # Actualizar campos legacy para compatibilidad backward
         self.is_list = False
         self.list_group = None
-        self.orden_lista = 0
+
+    # Métodos legacy (deprecados - mantener para compatibilidad durante migración)
+    def get_list_group(self) -> Optional[str]:
+        """
+        DEPRECADO: Usar get_list_id() en su lugar
+        Retorna el nombre del grupo de lista (campo legacy)
+        """
+        return self.list_group if self.is_list else None
 
     # Métodos para archivos (TYPE PATH)
     def get_formatted_file_size(self) -> str:
@@ -308,7 +342,7 @@ class Item:
         self.component_config = {}
 
     def __repr__(self) -> str:
-        list_info = f", list={self.list_group}[{self.orden_lista}]" if self.is_list_item() else ""
+        list_info = f", list_id={self.list_id}[{self.orden_lista}]" if self.is_list_item() else ""
         component_info = f", component={self.name_component}" if self.is_component_item() else ""
         return f"Item(id={self.id}, label={self.label}, type={self.type.value}{list_info}{component_info})"
 

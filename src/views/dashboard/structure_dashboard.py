@@ -696,8 +696,8 @@ class StructureDashboard(QDialog):
                     indicators += "📦 "  # Icono que coincide con el botón Archivar
                 if not item.get('is_active', 1):  # Si is_active es 0 o False
                     indicators += "🚫 "  # Icono que coincide con el botón Desactivar
-                # Otros indicadores
-                if item.get('is_list'):
+                # Otros indicadores (v3.1.0: usar list_id)
+                if item.get('list_id'):
                     indicators += "📝 "
                 if item['is_favorite']:
                     indicators += "⭐ "
@@ -739,9 +739,11 @@ class StructureDashboard(QDialog):
                 else:
                     item_widget.setText(4, "")
 
-                # Column 5: Listas (list group)
-                if item.get('is_list') and item.get('list_group'):
-                    item_widget.setText(5, f"📝 Lista: {item['list_group']}")
+                # Column 5: Listas (v3.1.0: usar list_id)
+                if item.get('list_id'):
+                    # Obtener nombre de lista desde BD si es posible
+                    list_name = item.get('list_name', f"Lista ID: {item['list_id']}")
+                    item_widget.setText(5, f"📝 {list_name}")
                 else:
                     item_widget.setText(5, "")
 
@@ -759,8 +761,10 @@ class StructureDashboard(QDialog):
                 if item['description']:
                     tooltip_parts.append(f"<b>Descripción:</b> {item['description']}")
 
-                if item.get('is_list') and item.get('list_group'):
-                    tooltip_parts.append(f"📝 <b>Pertenece a la lista:</b> {item['list_group']}")
+                # v3.1.0: mostrar info de lista
+                if item.get('list_id'):
+                    list_name = item.get('list_name', f"Lista ID: {item['list_id']}")
+                    tooltip_parts.append(f"📝 <b>Pertenece a la lista:</b> {list_name}")
 
                 if item['tags']:
                     tags_str = ", ".join([f"#{tag}" for tag in item['tags']])
@@ -1866,11 +1870,11 @@ class StructureDashboard(QDialog):
         import copy
         filtered_structure = copy.deepcopy(self.structure)
 
-        # Filter list items
+        # Filter list items (v3.1.0: usar list_id)
         for category in filtered_structure['categories']:
             category['items'] = [
                 item for item in category['items']
-                if item.get('is_list', False)
+                if item.get('list_id') is not None
             ]
 
         # Also apply type filters if active

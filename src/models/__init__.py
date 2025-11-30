@@ -6,6 +6,7 @@ from .category import Category
 from .item import Item, ItemType
 from .config import Config
 from .process import Process, ProcessStep
+from .lista import Lista
 
 __all__ = [
     'Category',
@@ -13,5 +14,6 @@ __all__ = [
     'ItemType',
     'Config',
     'Process',
-    'ProcessStep'
+    'ProcessStep',
+    'Lista'
 ]

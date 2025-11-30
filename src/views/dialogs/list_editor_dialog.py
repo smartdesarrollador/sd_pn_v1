@@ -36,30 +36,36 @@ class ListEditorDialog(QDialog):
     """
 
     # Señal emitida cuando se actualiza la lista exitosamente
-    list_updated = pyqtSignal(str, int)  # (list_name, category_id)
+    # Nueva arquitectura v3.1.0: usa lista_id en lugar de list_name
+    list_updated = pyqtSignal(int, int)  # (lista_id, category_id)
 
     def __init__(self, list_controller: ListController, category_id: int,
-                 list_group: str, categories: list, parent=None):
+                 lista_id: int, categories: list, parent=None):
         """
         Inicializa el diálogo de edición de listas
 
         Args:
             list_controller: Controlador de listas
             category_id: ID de la categoría
-            list_group: Nombre de la lista a editar
+            lista_id: ID de la lista a editar (nueva arquitectura v3.1.0)
             categories: Lista de categorías disponibles
             parent: Widget padre
         """
         super().__init__(parent)
         self.list_controller = list_controller
         self.category_id = category_id
-        self.original_list_group = list_group
+        self.lista_id = lista_id
         self.categories = categories
 
         self.step_widgets: List[StepItemWidget] = []
         self.original_items_count = 0  # Para confirmación al eliminar
+        self.original_list_name = ""  # Se cargará en load_list_data()
 
-        self.setWindowTitle(f"✏️ Editar Lista - {list_group}")
+        # Obtener nombre de la lista para el título
+        lista = self.list_controller.db.get_lista(lista_id)
+        list_name = lista['name'] if lista else "Lista"
+
+        self.setWindowTitle(f"✏️ Editar Lista - {list_name}")
         self.setModal(True)
         self.setMinimumWidth(700)
         self.setMinimumHeight(600)
@@ -70,12 +76,12 @@ class ListEditorDialog(QDialog):
         # Cargar datos de la lista existente
         self.load_list_data()
 
-        # Conectar señales del controlador
+        # Conectar señales del controlador (nueva arquitectura v3.1.0)
         self.list_controller.list_updated.connect(self.on_list_updated_signal)
         self.list_controller.list_renamed.connect(self.on_list_renamed_signal)
         self.list_controller.error_occurred.connect(self.on_error_signal)
 
-        logger.info(f"[LIST_EDITOR] Dialog opened for list: {list_group}")
+        logger.info(f"[LIST_EDITOR] Dialog opened for lista_id: {lista_id}")
 
     def setup_ui(self):
         """Configura la interfaz del diálogo"""
@@ -256,28 +262,39 @@ class ListEditorDialog(QDialog):
         """)
 
     def load_list_data(self):
-        """Carga los datos de la lista existente"""
+        """Carga los datos de la lista existente (nueva arquitectura v3.1.0)"""
         try:
-            # Obtener items de la lista
+            # Obtener datos de la lista
             logger.info(f"[LIST_EDITOR] Loading list data:")
+            logger.info(f"   - lista_id: {self.lista_id}")
             logger.info(f"   - category_id: {self.category_id}")
-            logger.info(f"   - list_group: '{self.original_list_group}'")
 
-            items = self.list_controller.get_list_items(self.category_id, self.original_list_group)
+            # Obtener registro de la lista
+            lista = self.list_controller.db.get_lista(self.lista_id)
+            if not lista:
+                logger.error(f"[LIST_EDITOR] Lista not found: lista_id={self.lista_id}")
+                QMessageBox.critical(self, "Error", f"No se encontró la lista con ID {self.lista_id}")
+                return
 
+            # Guardar nombre original
+            self.original_list_name = lista['name']
+
+            # Obtener items de la lista (usando lista_id)
+            items = self.list_controller.get_list_items(self.lista_id)
+
+            logger.info(f"   - lista name: '{lista['name']}'")
             logger.info(f"   - items returned: {len(items) if items else 0}")
 
             if not items:
-                logger.warning(f"[LIST_EDITOR] No items found for list: {self.original_list_group}")
-                logger.warning(f"[LIST_EDITOR] Query was: category_id={self.category_id}, list_group='{self.original_list_group}'")
-                QMessageBox.warning(self, "Advertencia", f"No se encontraron items en esta lista\n\nBuscando con category_id={self.category_id}")
+                logger.warning(f"[LIST_EDITOR] No items found for lista_id={self.lista_id}")
+                QMessageBox.warning(self, "Advertencia", f"No se encontraron items en esta lista")
                 return
 
             # Guardar conteo original
             self.original_items_count = len(items)
 
             # Cargar nombre de la lista
-            self.name_input.setText(self.original_list_group)
+            self.name_input.setText(lista['name'])
 
             # Crear widgets para cada item
             for item in items:
@@ -302,7 +319,7 @@ class ListEditorDialog(QDialog):
             self.update_step_numbers()
             self.update_save_button_text()
 
-            logger.info(f"[LIST_EDITOR] Loaded {len(items)} items for list: {self.original_list_group}")
+            logger.info(f"[LIST_EDITOR] Loaded {len(items)} items for lista_id: {self.lista_id}")
 
         except Exception as e:
             logger.error(f"[LIST_EDITOR] Error loading list data: {e}", exc_info=True)
@@ -427,10 +444,10 @@ class ListEditorDialog(QDialog):
             self.name_validation_label.setText("⚠ El nombre es demasiado largo (máx 100 caracteres)")
             return
 
-        # Validar unicidad (excluyendo el nombre original)
-        if text.strip() != self.original_list_group:
-            if not self.list_controller.db.is_list_name_unique(
-                self.category_id, text.strip(), exclude_list=self.original_list_group
+        # Validar unicidad (excluyendo la lista actual por ID)
+        if text.strip() != self.original_list_name:
+            if not self.list_controller.db.is_list_name_unique_v2(
+                self.category_id, text.strip(), exclude_lista_id=self.lista_id
             ):
                 self.name_validation_label.setText("⚠ Ya existe una lista con este nombre en la categoría")
                 return
@@ -476,7 +493,7 @@ class ListEditorDialog(QDialog):
         return steps_data
 
     def save_changes(self):
-        """Guarda los cambios en la lista existente"""
+        """Guarda los cambios en la lista existente (nueva arquitectura v3.1.0)"""
         # Validar formulario
         is_valid, error_msg = self.validate_form()
         if not is_valid:
@@ -488,36 +505,35 @@ class ListEditorDialog(QDialog):
         steps_data = self.get_steps_data()
 
         # Verificar si hubo cambios
-        name_changed = new_list_name != self.original_list_group
+        name_changed = new_list_name != self.original_list_name
         items_changed = len(steps_data) != self.original_items_count  # Simplificado
 
         if not name_changed and not items_changed:
             # Podría no haber cambios significativos, pero permitir guardar de todos modos
             pass
 
-        # Actualizar lista a través del controlador
+        # Actualizar lista a través del controlador (nueva arquitectura v3.1.0)
         success, message = self.list_controller.update_list(
-            category_id=self.category_id,
-            old_list_group=self.original_list_group,
-            new_list_group=new_list_name if name_changed else None,
+            lista_id=self.lista_id,
+            new_name=new_list_name if name_changed else None,
+            description=None,  # TODO: Agregar campo description en UI
             items_data=steps_data
         )
 
         if success:
             QMessageBox.information(self, "Éxito", message)
-            final_name = new_list_name if name_changed else self.original_list_group
-            self.list_updated.emit(final_name, self.category_id)
+            self.list_updated.emit(self.lista_id, self.category_id)
             self.accept()
         else:
             QMessageBox.critical(self, "Error", message)
 
-    def on_list_updated_signal(self, list_name: str, category_id: int):
-        """Callback cuando el controlador emite señal de lista actualizada"""
-        logger.info(f"[LIST_EDITOR] List updated signal received: {list_name}")
+    def on_list_updated_signal(self, lista_id: int, category_id: int):
+        """Callback cuando el controlador emite señal de lista actualizada (v3.1.0)"""
+        logger.info(f"[LIST_EDITOR] List updated signal received: lista_id={lista_id}, category={category_id}")
 
-    def on_list_renamed_signal(self, old_name: str, new_name: str, category_id: int):
-        """Callback cuando el controlador emite señal de lista renombrada"""
-        logger.info(f"[LIST_EDITOR] List renamed signal received: {old_name} -> {new_name}")
+    def on_list_renamed_signal(self, lista_id: int, old_name: str, new_name: str, category_id: int):
+        """Callback cuando el controlador emite señal de lista renombrada (v3.1.0)"""
+        logger.info(f"[LIST_EDITOR] List renamed signal received: lista_id={lista_id}, {old_name} -> {new_name}")
 
     def on_error_signal(self, error_message: str):
         """Callback cuando el controlador emite señal de error"""
