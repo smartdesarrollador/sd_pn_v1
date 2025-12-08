@@ -11,8 +11,8 @@ MVP Features:
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QListWidget,
                              QListWidgetItem, QTextEdit, QScrollArea, QFrame,
-                             QMessageBox, QColorDialog, QApplication, QDialog)
-from PyQt6.QtCore import Qt, pyqtSignal
+                             QMessageBox, QColorDialog, QApplication, QDialog, QStackedWidget)
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPropertyAnimation, QEasingCurve, QRect
 from PyQt6.QtGui import QColor
 import logging
 
@@ -41,6 +41,11 @@ class AreasWindow(QMainWindow):
         self._view_mode = 'edit'  # 'edit' o 'clean'
         self._selected_insert_position = None  # (item_type, item_id, order_index) del elemento seleccionado
 
+        # Estado de paneles laterales
+        self._left_panel_collapsed = True  # Colapsado por defecto en modo compacto
+        self._right_panel_visible = False  # Drawer de filtros oculto por defecto
+        self._is_compact_mode = True  # Modo compacto por defecto
+
         self.init_ui()
         self.load_areas()
 
@@ -49,7 +54,18 @@ class AreasWindow(QMainWindow):
     def init_ui(self):
         """Inicializa la interfaz"""
         self.setWindowTitle("🏢 Gestión de Áreas")
-        self.showMaximized()  # Maximizada por defecto
+
+        # Tamaño por defecto: ancho de móvil (400px), altura de escritorio
+        self.resize(400, 700)
+
+        # Centrar en pantalla
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_rect = screen.availableGeometry()
+            self.move(
+                (screen_rect.width() - 400) // 2,
+                (screen_rect.height() - 700) // 2
+            )
 
         # Widget central
         central_widget = QWidget()
@@ -60,19 +76,24 @@ class AreasWindow(QMainWindow):
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Panel izquierdo: Lista de áreas (20%)
-        left_panel = self._create_areas_list_panel()
-        left_panel.setMaximumWidth(300)
-        main_layout.addWidget(left_panel, 1)
+        # Panel izquierdo: Lista de áreas (con overlay en modo compacto)
+        self.left_panel = self._create_areas_list_panel()
+        self.left_panel.setMaximumWidth(280)
+        self.left_panel.setVisible(False)  # Oculto por defecto en modo compacto
+        main_layout.addWidget(self.left_panel, 0)  # 0 para que no se expanda
 
-        # Panel central: Espacio del área (60%)
+        # Panel central: Espacio del área
         center_panel = self._create_area_space_panel()
-        main_layout.addWidget(center_panel, 3)
+        main_layout.addWidget(center_panel, 1)  # 1 para que ocupe espacio disponible
 
-        # Panel derecho: Filtros por tags (20%)
-        right_panel = self._create_tag_filter_panel()
-        right_panel.setMaximumWidth(250)
-        main_layout.addWidget(right_panel, 1)
+        # Panel derecho: Filtros por tags (drawer/modal en modo compacto)
+        self.right_panel = self._create_tag_filter_panel()
+        self.right_panel.setMaximumWidth(280)
+        self.right_panel.setVisible(False)  # Oculto por defecto en modo compacto
+        main_layout.addWidget(self.right_panel, 0)  # 0 para que no se expanda
+
+        # Aplicar layout responsivo inicial
+        self._apply_responsive_layout()
 
         # Styling
         self.setStyleSheet("""
@@ -126,7 +147,13 @@ class AreasWindow(QMainWindow):
     def _create_areas_list_panel(self) -> QWidget:
         """Crea el panel izquierdo con lista de áreas"""
         panel = QWidget()
-        panel.setStyleSheet("background-color: #252525; border-right: 2px solid #3d3d3d;")
+        panel.setObjectName("leftPanel")
+        panel.setStyleSheet("""
+            QWidget#leftPanel {
+                background-color: #252525;
+                border-right: 2px solid #3d3d3d;
+            }
+        """)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 10, 10, 10)
 
@@ -178,28 +205,60 @@ class AreasWindow(QMainWindow):
         # Header con info del área y toggle de modo
         header_layout = QHBoxLayout()
 
+        # Botón toggle panel izquierdo (solo visible en modo compacto)
+        self.left_toggle_btn = QPushButton("☰")
+        self.left_toggle_btn.setFixedSize(40, 40)
+        self.left_toggle_btn.setToolTip("Mostrar/Ocultar lista de áreas")
+        self.left_toggle_btn.clicked.connect(self.toggle_left_panel)
+        self.left_toggle_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 18pt;
+                padding: 5px;
+            }
+        """)
+        header_layout.addWidget(self.left_toggle_btn)
+
         self.area_name_label = QLabel("Selecciona un área")
-        self.area_name_label.setStyleSheet("font-size: 16pt; font-weight: bold;")
+        self.area_name_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
+        self.area_name_label.setWordWrap(True)
         header_layout.addWidget(self.area_name_label)
 
         header_layout.addStretch()
 
+        # Botón toggle panel derecho (filtros) - solo visible en modo compacto
+        self.right_toggle_btn = QPushButton("🏷️")
+        self.right_toggle_btn.setFixedSize(40, 40)
+        self.right_toggle_btn.setToolTip("Mostrar/Ocultar filtros de tags")
+        self.right_toggle_btn.clicked.connect(self.toggle_right_panel)
+        self.right_toggle_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 16pt;
+                padding: 5px;
+            }
+        """)
+        header_layout.addWidget(self.right_toggle_btn)
+
         # Botón refrescar área
-        self.refresh_btn = QPushButton("🔄 Actualizar")
+        self.refresh_btn = QPushButton("🔄")
+        self.refresh_btn.setFixedSize(40, 40)
         self.refresh_btn.setVisible(False)  # Oculto hasta seleccionar área
         self.refresh_btn.clicked.connect(self.on_refresh_area)
         self.refresh_btn.setToolTip("Actualizar la vista del área")
         header_layout.addWidget(self.refresh_btn)
 
         # Botón editar área
-        self.edit_area_btn = QPushButton("✏️ Editar")
+        self.edit_area_btn = QPushButton("✏️")
+        self.edit_area_btn.setFixedSize(40, 40)
         self.edit_area_btn.setVisible(False)  # Oculto hasta seleccionar área
         self.edit_area_btn.clicked.connect(self.on_edit_area)
+        self.edit_area_btn.setToolTip("Editar área")
         header_layout.addWidget(self.edit_area_btn)
 
         # Toggle modo vista
-        self.mode_toggle_btn = QPushButton("👁️ Vista Limpia")
+        self.mode_toggle_btn = QPushButton("👁️")
+        self.mode_toggle_btn.setFixedSize(40, 40)
         self.mode_toggle_btn.clicked.connect(self.toggle_view_mode)
+        self.mode_toggle_btn.setToolTip("Vista Limpia")
         header_layout.addWidget(self.mode_toggle_btn)
 
         layout.addLayout(header_layout)
@@ -251,7 +310,13 @@ class AreasWindow(QMainWindow):
     def _create_tag_filter_panel(self) -> QWidget:
         """Crea el panel derecho con filtros por tags"""
         panel = QWidget()
-        panel.setStyleSheet("background-color: #252525; border-left: 2px solid #3d3d3d;")
+        panel.setObjectName("rightPanel")
+        panel.setStyleSheet("""
+            QWidget#rightPanel {
+                background-color: #252525;
+                border-left: 2px solid #3d3d3d;
+            }
+        """)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 20, 10, 20)
         layout.setSpacing(0)
@@ -276,33 +341,63 @@ class AreasWindow(QMainWindow):
 
     def _create_toolbar(self) -> QWidget:
         """Crea el toolbar con botones para agregar elementos"""
+        # Crear scroll area para el toolbar
+        toolbar_scroll = QScrollArea()
+        toolbar_scroll.setWidgetResizable(True)
+        toolbar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        toolbar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        toolbar_scroll.setMaximumHeight(70)
+        toolbar_scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+        """)
+
         toolbar = QWidget()
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(0, 10, 0, 10)
 
+        # Estilo compacto para botones del toolbar
+        btn_style = """
+            QPushButton {
+                padding: 6px 10px;
+                min-width: 60px;
+                font-size: 9pt;
+            }
+        """
+
         # Botones para agregar elementos
         add_tag_btn = QPushButton("🏷️ Tag")
         add_tag_btn.clicked.connect(lambda: self.add_element_to_area('tag'))
+        add_tag_btn.setStyleSheet(btn_style)
         toolbar_layout.addWidget(add_tag_btn)
 
         add_item_btn = QPushButton("📄 Item")
         add_item_btn.clicked.connect(lambda: self.add_element_to_area('item'))
+        add_item_btn.setStyleSheet(btn_style)
         toolbar_layout.addWidget(add_item_btn)
 
-        add_category_btn = QPushButton("📂 Categoría")
+        add_category_btn = QPushButton("📂 Cat")
         add_category_btn.clicked.connect(lambda: self.add_element_to_area('category'))
+        add_category_btn.setStyleSheet(btn_style)
+        add_category_btn.setToolTip("Categoría")
         toolbar_layout.addWidget(add_category_btn)
 
         add_list_btn = QPushButton("📋 Lista")
         add_list_btn.clicked.connect(lambda: self.add_element_to_area('list'))
+        add_list_btn.setStyleSheet(btn_style)
         toolbar_layout.addWidget(add_list_btn)
 
         add_table_btn = QPushButton("📊 Tabla")
         add_table_btn.clicked.connect(lambda: self.add_element_to_area('table'))
+        add_table_btn.setStyleSheet(btn_style)
         toolbar_layout.addWidget(add_table_btn)
 
-        add_process_btn = QPushButton("⚙️ Proceso")
+        add_process_btn = QPushButton("⚙️ Proc")
         add_process_btn.clicked.connect(lambda: self.add_element_to_area('process'))
+        add_process_btn.setStyleSheet(btn_style)
+        add_process_btn.setToolTip("Proceso")
         toolbar_layout.addWidget(add_process_btn)
 
         # Separador
@@ -311,25 +406,35 @@ class AreasWindow(QMainWindow):
         toolbar_layout.addWidget(sep)
 
         # Componentes estructurales
-        add_comment_btn = QPushButton("💬 Comentario")
+        add_comment_btn = QPushButton("💬 Com")
         add_comment_btn.clicked.connect(lambda: self.add_component('comment'))
+        add_comment_btn.setStyleSheet(btn_style)
+        add_comment_btn.setToolTip("Comentario")
         toolbar_layout.addWidget(add_comment_btn)
 
         add_note_btn = QPushButton("📌 Nota")
         add_note_btn.clicked.connect(lambda: self.add_component('note'))
+        add_note_btn.setStyleSheet(btn_style)
         toolbar_layout.addWidget(add_note_btn)
 
-        add_alert_btn = QPushButton("⚠️ Alerta")
+        add_alert_btn = QPushButton("⚠️ Alert")
         add_alert_btn.clicked.connect(lambda: self.add_component('alert'))
+        add_alert_btn.setStyleSheet(btn_style)
+        add_alert_btn.setToolTip("Alerta")
         toolbar_layout.addWidget(add_alert_btn)
 
-        add_divider_btn = QPushButton("─ Divisor")
+        add_divider_btn = QPushButton("─ Div")
         add_divider_btn.clicked.connect(lambda: self.add_component('divider'))
+        add_divider_btn.setStyleSheet(btn_style)
+        add_divider_btn.setToolTip("Divisor")
         toolbar_layout.addWidget(add_divider_btn)
 
         toolbar_layout.addStretch()
 
-        return toolbar
+        # Establecer el toolbar dentro del scroll area
+        toolbar_scroll.setWidget(toolbar)
+
+        return toolbar_scroll
 
     # ==================== EVENTOS ====================
 
@@ -922,7 +1027,8 @@ class AreasWindow(QMainWindow):
         """Aplica estilo de Modo Edición"""
         self.toolbar.setVisible(True)
         self.bottom_buttons.setVisible(True)
-        self.mode_toggle_btn.setText("👁️ Vista Limpia")
+        self.mode_toggle_btn.setText("👁️")
+        self.mode_toggle_btn.setToolTip("Vista Limpia")
 
         # Mostrar container de modo edición, ocultar grid
         self.edit_mode_container.setVisible(True)
@@ -935,7 +1041,8 @@ class AreasWindow(QMainWindow):
         """Aplica estilo de Modo Vista Amigable (Grid de Cards)"""
         self.toolbar.setVisible(False)
         self.bottom_buttons.setVisible(False)
-        self.mode_toggle_btn.setText("📝 Modo Edición")
+        self.mode_toggle_btn.setText("📝")
+        self.mode_toggle_btn.setToolTip("Modo Edición")
 
         # Ocultar container de modo edición, mostrar grid
         self.edit_mode_container.setVisible(False)
@@ -1258,6 +1365,95 @@ class AreasWindow(QMainWindow):
     def on_save(self):
         """Guarda cambios (placeholder)"""
         QMessageBox.information(self, "Info", "Los cambios se guardan automáticamente")
+
+    def resizeEvent(self, event):
+        """Detecta cambios de tamaño y ajusta el layout"""
+        super().resizeEvent(event)
+        self._apply_responsive_layout()
+
+    def _apply_responsive_layout(self):
+        """Aplica el layout según el ancho de la ventana"""
+        window_width = self.width()
+
+        # Breakpoint: 900px
+        if window_width < 900:
+            # Modo compacto
+            if not self._is_compact_mode:
+                self._switch_to_compact_mode()
+        else:
+            # Modo escritorio
+            if self._is_compact_mode:
+                self._switch_to_desktop_mode()
+
+    def _switch_to_compact_mode(self):
+        """Cambia a modo compacto (móvil)"""
+        logger.info("Switching to COMPACT mode")
+        self._is_compact_mode = True
+
+        # Ocultar panel izquierdo solo si estaba colapsado
+        if self._left_panel_collapsed:
+            self.left_panel.setVisible(False)
+
+        # Ocultar panel derecho solo si no estaba visible
+        if not self._right_panel_visible:
+            self.right_panel.setVisible(False)
+
+        # Mostrar botones de toggle
+        self.left_toggle_btn.setVisible(True)
+        self.right_toggle_btn.setVisible(True)
+
+    def _switch_to_desktop_mode(self):
+        """Cambia a modo escritorio (pantalla grande)"""
+        logger.info("Switching to DESKTOP mode")
+        self._is_compact_mode = False
+
+        # Mostrar ambos paneles laterales
+        self.left_panel.setVisible(True)
+        self.right_panel.setVisible(True)
+
+        # Ocultar botones de toggle
+        self.left_toggle_btn.setVisible(False)
+        self.right_toggle_btn.setVisible(False)
+
+    def toggle_left_panel(self):
+        """Alterna la visibilidad del panel izquierdo"""
+        if self._is_compact_mode:
+            self._left_panel_collapsed = not self._left_panel_collapsed
+            self.left_panel.setVisible(not self._left_panel_collapsed)
+
+            # Animar el icono del botón
+            if self._left_panel_collapsed:
+                self.left_toggle_btn.setText("☰")
+            else:
+                self.left_toggle_btn.setText("✕")
+
+            logger.info(f"Left panel toggled: {'hidden' if self._left_panel_collapsed else 'visible'}")
+
+    def toggle_right_panel(self):
+        """Alterna la visibilidad del panel derecho (filtros)"""
+        if self._is_compact_mode:
+            self._right_panel_visible = not self._right_panel_visible
+            self.right_panel.setVisible(self._right_panel_visible)
+
+            # Cambiar estilo del botón cuando está activo
+            if self._right_panel_visible:
+                self.right_toggle_btn.setStyleSheet("""
+                    QPushButton {
+                        font-size: 16pt;
+                        padding: 5px;
+                        background-color: #9b59b6;
+                        color: #ffffff;
+                    }
+                """)
+            else:
+                self.right_toggle_btn.setStyleSheet("""
+                    QPushButton {
+                        font-size: 16pt;
+                        padding: 5px;
+                    }
+                """)
+
+            logger.info(f"Right panel toggled: {'visible' if self._right_panel_visible else 'hidden'}")
 
     def closeEvent(self, event):
         """Al cerrar la ventana"""
