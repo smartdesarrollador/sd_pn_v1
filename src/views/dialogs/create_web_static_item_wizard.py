@@ -19,6 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.html_validator import validate_web_static_content
 from utils.constants import ITEM_TYPE_ICONS
+from views.widgets.project_tag_selector import ProjectTagSelector
+from core.global_tag_manager import GlobalTagManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,13 @@ class CreateWebStaticItemWizard(QDialog):
         self.controller = controller
         self.current_step = 0
         self.total_steps = 2
+
+        # Initialize GlobalTagManager
+        self.global_tag_manager = None
+        try:
+            self.global_tag_manager = GlobalTagManager(controller.config_manager.db)
+        except Exception as e:
+            logger.error(f"Could not initialize GlobalTagManager: {e}")
 
         self.setWindowTitle("Crear Item Web Estático")
         self.setModal(True)
@@ -203,11 +212,20 @@ class CreateWebStaticItemWizard(QDialog):
         self._load_categories()
         form_layout.addRow("Categoría: *", self.category_combo)
 
-        # Tags
-        self.tags_input = QLineEdit()
-        self.tags_input.setPlaceholderText("calculadora, finanzas, herramientas (separados por coma)")
-        self.tags_input.setMinimumHeight(35)
-        form_layout.addRow("Tags:", self.tags_input)
+        # Tags con ProjectTagSelector
+        tags_label = QLabel("Tags:")
+        form_layout.addRow(tags_label)
+
+        if self.global_tag_manager:
+            self.tag_selector = ProjectTagSelector(self.global_tag_manager)
+            self.tag_selector.setMinimumHeight(150)
+            form_layout.addRow(self.tag_selector)
+        else:
+            # Fallback if no manager available
+            self.tag_selector = QLineEdit()
+            self.tag_selector.setPlaceholderText("tag1, tag2, tag3 (separados por coma)")
+            self.tag_selector.setMinimumHeight(35)
+            form_layout.addRow(self.tag_selector)
 
         # Tipo (readonly)
         type_label = QLabel(f"{ITEM_TYPE_ICONS['WEB_STATIC']} WEB_STATIC")
@@ -582,10 +600,20 @@ class CreateWebStaticItemWizard(QDialog):
         category_id = self.category_combo.currentData()
         label = self.label_input.text().strip()
         description = self.description_input.text().strip()
-        tags_text = self.tags_input.text().strip()
 
-        # Parsear tags
-        tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()]
+        # Obtener tags
+        tags = []
+        if self.tag_selector and hasattr(self.tag_selector, 'get_selected_tags'):
+            # ProjectTagSelector
+            selected_ids = self.tag_selector.get_selected_tags()
+            for tag_id in selected_ids:
+                tag = self.global_tag_manager.get_tag(tag_id)
+                if tag:
+                    tags.append(tag.name)
+        elif hasattr(self, 'tag_selector'):
+            # QLineEdit fallback
+            tags_text = self.tag_selector.text().strip()
+            tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()] if tags_text else []
 
         try:
             # Crear item en base de datos (tags se pasan directamente como parámetro)
