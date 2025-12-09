@@ -11,7 +11,9 @@ from pathlib import Path
 import logging
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from views.widgets.tag_group_selector import TagGroupSelector
+from views.widgets.project_tag_selector import ProjectTagSelector
+from core.global_tag_manager import GlobalTagManager
+from database.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,7 @@ class SaveUrlDialog(QDialog):
             current_url: URL actual del navegador
             page_title: Título de la página actual
             categories: Lista de categorías disponibles
-            db_path: Path a la base de datos para TagGroupSelector
+            db_path: Path a la base de datos para GlobalTagManager
             parent: Widget padre
         """
         super().__init__(parent)
@@ -44,6 +46,15 @@ class SaveUrlDialog(QDialog):
         self.categories = categories
         self.db_path = db_path
         self.selected_category_id = None
+
+        # Initialize GlobalTagManager
+        self.global_tag_manager = None
+        if self.db_path:
+            try:
+                db = DBManager(self.db_path)
+                self.global_tag_manager = GlobalTagManager(db)
+            except Exception as e:
+                logger.error(f"Could not initialize GlobalTagManager: {e}")
 
         self.init_ui()
 
@@ -162,72 +173,33 @@ class SaveUrlDialog(QDialog):
         """)
         layout.addWidget(self.description_input)
 
-        # === Tags (opcional) ===
-        tags_label = QLabel("Tags: (opcional, separados por comas)")
+        # === Tags con ProjectTagSelector ===
+        tags_label = QLabel("Tags:")
         tags_label.setStyleSheet("font-weight: bold; color: #888888;")
         layout.addWidget(tags_label)
 
-        self.tags_input = QLineEdit()
-        self.tags_input.setPlaceholderText("Ej: react, documentación, web")
-        self.tags_input.setStyleSheet("""
-            QLineEdit {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                border: 1px solid #3d3d3d;
-                border-radius: 3px;
-                padding: 8px;
-                font-size: 10pt;
-            }
-            QLineEdit:focus {
-                border: 1px solid #00d4ff;
-            }
-        """)
-        layout.addWidget(self.tags_input)
-
-        # Tag Group Selector (optional) - wrapped in scroll area
-        if self.db_path:
-            try:
-                self.tag_group_selector = TagGroupSelector(self.db_path, self)
-                self.tag_group_selector.tags_changed.connect(self.on_tag_group_changed)
-
-                # Create scroll area for tag group selector
-                tags_scroll_area = QScrollArea()
-                tags_scroll_area.setWidget(self.tag_group_selector)
-                tags_scroll_area.setWidgetResizable(True)
-                tags_scroll_area.setFixedHeight(120)  # Fixed height with scroll
-                tags_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-                tags_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-                tags_scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-                tags_scroll_area.setStyleSheet("""
-                    QScrollArea {
-                        border: 1px solid #3d3d3d;
-                        border-radius: 4px;
-                        background-color: #2d2d2d;
-                    }
-                    QScrollBar:vertical {
-                        background-color: #2d2d2d;
-                        width: 12px;
-                        border-radius: 6px;
-                    }
-                    QScrollBar::handle:vertical {
-                        background-color: #5a5a5a;
-                        border-radius: 6px;
-                        min-height: 20px;
-                    }
-                    QScrollBar::handle:vertical:hover {
-                        background-color: #007acc;
-                    }
-                    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                        height: 0px;
-                    }
-                """)
-
-                layout.addWidget(tags_scroll_area)
-            except Exception as e:
-                logger.warning(f"Could not initialize TagGroupSelector: {e}")
-                self.tag_group_selector = None
+        if self.global_tag_manager:
+            self.tag_selector = ProjectTagSelector(self.global_tag_manager)
+            self.tag_selector.setMinimumHeight(150)
+            layout.addWidget(self.tag_selector)
         else:
-            self.tag_group_selector = None
+            # Fallback if no manager available
+            self.tag_selector = QLineEdit()
+            self.tag_selector.setPlaceholderText("tag1, tag2, tag3 (separados por comas)")
+            self.tag_selector.setStyleSheet("""
+                QLineEdit {
+                    background-color: #2d2d2d;
+                    color: #ffffff;
+                    border: 1px solid #3d3d3d;
+                    border-radius: 3px;
+                    padding: 8px;
+                    font-size: 10pt;
+                }
+                QLineEdit:focus {
+                    border: 1px solid #00d4ff;
+                }
+            """)
+            layout.addWidget(self.tag_selector)
 
         # === Botones ===
         buttons_layout = QHBoxLayout()
@@ -282,18 +254,6 @@ class SaveUrlDialog(QDialog):
             }
         """)
 
-    def on_tag_group_changed(self, tags: list):
-        """Handle tag group selector changes"""
-        try:
-            # Actualizar el campo de tags con los tags seleccionados
-            if tags:
-                self.tags_input.setText(", ".join(tags))
-            else:
-                self.tags_input.setText("")
-            logger.debug(f"Tags updated from tag group selector: {tags}")
-        except Exception as e:
-            logger.error(f"Error updating tags from tag group selector: {e}")
-
     def validate_and_accept(self):
         """Valida los campos antes de aceptar."""
         # Validar que haya categoría seleccionada
@@ -318,9 +278,19 @@ class SaveUrlDialog(QDialog):
         # Obtener category_id del combo
         category_id = self.category_combo.currentData()
 
-        # Procesar tags (separar por comas y limpiar)
-        tags_text = self.tags_input.text().strip()
-        tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()] if tags_text else []
+        # Obtener tags
+        tags = []
+        if self.tag_selector and hasattr(self.tag_selector, 'get_selected_tags'):
+            # ProjectTagSelector
+            selected_ids = self.tag_selector.get_selected_tags()
+            for tag_id in selected_ids:
+                tag = self.global_tag_manager.get_tag(tag_id)
+                if tag:
+                    tags.append(tag.name)
+        elif hasattr(self, 'tag_selector'):
+            # QLineEdit fallback
+            tags_text = self.tag_selector.text().strip()
+            tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()] if tags_text else []
 
         return {
             'category_id': category_id,
