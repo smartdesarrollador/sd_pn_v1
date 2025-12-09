@@ -691,6 +691,7 @@ class GlobalSearchPanel(QWidget, TaskbarMinimizableMixin):
             )
             item_button.item_clicked.connect(self.on_item_clicked)
             item_button.url_open_requested.connect(self.on_url_open_requested)
+            item_button.item_edit_requested.connect(self.on_item_edit_requested)
             self.items_layout.insertWidget(self.items_layout.count() - 1, item_button)
 
         # Add info message if showing limited results
@@ -744,6 +745,41 @@ class GlobalSearchPanel(QWidget, TaskbarMinimizableMixin):
         logger.info(f"URL open requested: {url}")
         # Forward signal to parent (MainWindow)
         self.url_open_requested.emit(url)
+
+    def on_item_edit_requested(self, item):
+        """Handle item edit request from ItemButton"""
+        logger.info(f"Edit requested for item: {item.label}")
+
+        try:
+            from views.item_editor_dialog import ItemEditorDialog
+            from PyQt6.QtWidgets import QDialog
+
+            # Create a simple controller wrapper that has config_manager
+            class ControllerWrapper:
+                def __init__(self, config_manager):
+                    self.config_manager = config_manager
+
+            controller = ControllerWrapper(self.config_manager) if self.config_manager else None
+
+            # Open ItemEditorDialog with the item to edit
+            dialog = ItemEditorDialog(
+                item=item,
+                category_id=item.category_id if hasattr(item, 'category_id') else None,
+                controller=controller,
+                parent=self
+            )
+
+            # Connect signals to refresh panel after edit
+            dialog.item_updated.connect(lambda item_id, cat_id: self.reload_all_items())
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                logger.info(f"Item '{item.label}' edited successfully from GlobalSearchPanel")
+                # Panel will refresh automatically via signal connection
+
+        except Exception as e:
+            logger.error(f"Error opening item editor: {e}", exc_info=True)
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Error al abrir editor de item:\n\n{str(e)}")
 
     def on_item_state_changed(self, item_id: str):
         """Handle item state change (favorite/archived) from ItemDetailsDialog"""

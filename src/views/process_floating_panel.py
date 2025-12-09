@@ -562,6 +562,7 @@ class ProcessFloatingPanel(QWidget, TaskbarMinimizableMixin):
                         parent=self
                     )
                     item_widget.item_clicked.connect(lambda i=item: self.on_item_clicked(i))
+                    item_widget.item_edit_requested.connect(self.on_item_edit_requested)
                     item_row_layout.addWidget(item_widget, stretch=1)
 
                     # Add action buttons based on item type
@@ -681,6 +682,41 @@ class ProcessFloatingPanel(QWidget, TaskbarMinimizableMixin):
         """Handle item click"""
         logger.info(f"Item clicked: {item.label}")
         self.item_clicked.emit(item)
+
+    def on_item_edit_requested(self, item):
+        """Handle item edit request from ItemButton"""
+        logger.info(f"Edit requested for item: {item.label}")
+
+        try:
+            from views.item_editor_dialog import ItemEditorDialog
+            from PyQt6.QtWidgets import QDialog
+
+            # Create a simple controller wrapper that has config_manager
+            class ControllerWrapper:
+                def __init__(self, config_manager):
+                    self.config_manager = config_manager
+
+            controller = ControllerWrapper(self.config_manager) if self.config_manager else None
+
+            # Open ItemEditorDialog with the item to edit
+            dialog = ItemEditorDialog(
+                item=item,
+                category_id=item.category_id if hasattr(item, 'category_id') else None,
+                controller=controller,
+                parent=self
+            )
+
+            # Connect signals to refresh panel after edit
+            dialog.item_updated.connect(lambda item_id, cat_id: self.reload_process())
+
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                logger.info(f"Item '{item.label}' edited successfully from ProcessFloatingPanel")
+                # Panel will refresh automatically via signal connection
+
+        except Exception as e:
+            logger.error(f"Error opening item editor: {e}", exc_info=True)
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Error al abrir editor de item:\n\n{str(e)}")
 
     def on_copy_all_clicked(self, checked: bool):
         """Copy all items from the process to clipboard"""
