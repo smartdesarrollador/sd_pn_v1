@@ -48,12 +48,16 @@ class CodeItemWidget(BaseItemWidget):
         label = self.get_item_label()
         if label and label != 'Sin título':
             title_label = QLabel(f"$ {label}")
+            title_label.setWordWrap(True)
+            title_label.setMaximumWidth(720)
             title_label.setStyleSheet("""
                 color: #7CFC00;
                 font-size: 13px;
                 font-weight: bold;
                 font-family: 'Consolas', 'Courier New', monospace;
                 padding-bottom: 6px;
+                word-break: break-word;
+                overflow-wrap: anywhere;
             """)
             self.content_layout.addWidget(title_label)
 

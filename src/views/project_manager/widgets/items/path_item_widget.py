@@ -64,11 +64,15 @@ class PathItemWidget(BaseItemWidget):
         label = self.get_item_label()
         if label and label != 'Sin título':
             title_label = QLabel(label)
+            title_label.setWordWrap(True)
+            title_label.setMaximumWidth(680)  # Menor porque hay icono
             title_label.setStyleSheet("""
                 color: #FFFFFF;
                 font-size: 14px;
                 font-weight: bold;
                 font-family: 'Segoe UI', Arial, sans-serif;
+                word-break: break-word;
+                overflow-wrap: anywhere;
             """)
             title_layout.addWidget(title_label)
 
