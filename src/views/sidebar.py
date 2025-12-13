@@ -135,7 +135,7 @@ class Sidebar(QWidget):
         main_layout.setSpacing(0)
 
         # App title/logo
-        title_label = QLabel("WS")
+        title_label = QLabel("SP")
         title_label.setStyleSheet(f"""
             QLabel {{
                 background-color: {self.theme.get_color('background_deep')};

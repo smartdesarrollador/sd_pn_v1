@@ -4,10 +4,10 @@ Este archivo proporciona guía a Claude Code (claude.ai/code) al trabajar con c�
 
 ## Descripción del Proyecto
 
-**Widget Sidebar** es una aplicación de escritorio para Windows diseñada como un gestor avanzado de portapapeles y biblioteca de snippets. Construida con PyQt6 y SQLite, proporciona un sidebar persistente siempre visible en el borde derecho de la pantalla para acceso instantáneo a comandos, URLs, fragmentos de código y texto frecuentemente utilizados.
+**SidePanel** es una aplicación de escritorio para Windows diseñada como un gestor avanzado de portapapeles y biblioteca de snippets. Construida con PyQt6 y SQLite, proporciona un sidebar persistente siempre visible en el borde derecho de la pantalla para acceso instantáneo a comandos, URLs, fragmentos de código y texto frecuentemente utilizados.
 
 ### Propósito
-Facilitar el flujo de trabajo de desarrolladores y usuarios avanzados mediante:
+Facilitar el flujo de trabajo de usuarios mediante:
 - Acceso inmediato a comandos y snippets sin cambiar de aplicación
 - Organización inteligente de contenido mediante categorías personalizables
 - Copiar al portapapeles con un solo clic desde cualquier lugar
