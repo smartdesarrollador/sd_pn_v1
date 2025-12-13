@@ -1233,6 +1233,9 @@ class BulkItemCreatorDialog(QWidget):
 
             logger.info(f"Categoría creada: {name} (ID: {category_id})")
 
+            # IMPORTANTE: Invalidar caché del ConfigManager para que se recargue desde BD
+            self.config._categories_cache = None
+
             # Actualizar todos los tabs
             self._reload_categories_in_all_tabs()
 
