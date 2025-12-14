@@ -6082,9 +6082,9 @@ class DBManager:
             logger.error(f"Error actualizando descripción de relación {relation_id}: {e}")
             return False
 
-    def update_relation_order(self, relation_id: int, new_order_index: int) -> bool:
+    def update_project_relation_order(self, relation_id: int, new_order_index: int) -> bool:
         """
-        Actualiza el orden de una relación
+        Actualiza el orden de una relación de proyecto
 
         Args:
             relation_id: ID de la relación
@@ -6103,7 +6103,7 @@ class DBManager:
             return True
 
         except Exception as e:
-            logger.error(f"Error actualizando orden de relación {relation_id}: {e}")
+            logger.error(f"Error actualizando orden de relación de proyecto {relation_id}: {e}")
             return False
 
     # ==================== PROJECT COMPONENTS ====================
@@ -6209,9 +6209,9 @@ class DBManager:
             logger.error(f"Error actualizando componente {component_id}: {e}")
             return False
 
-    def update_component_order(self, component_id: int, new_order_index: int) -> bool:
+    def update_project_component_order(self, component_id: int, new_order_index: int) -> bool:
         """
-        Actualiza el orden de un componente
+        Actualiza el orden de un componente de proyecto
 
         Args:
             component_id: ID del componente
@@ -6230,7 +6230,7 @@ class DBManager:
             return True
 
         except Exception as e:
-            logger.error(f"Error actualizando orden de componente {component_id}: {e}")
+            logger.error(f"Error actualizando orden de componente de proyecto {component_id}: {e}")
             return False
 
     # ==================== QUERIES COMBINADAS ====================
@@ -7474,7 +7474,7 @@ class DBManager:
             logger.error(f"Error actualizando descripción de relación {relation_id}: {e}")
             return False
 
-    def update_relation_order(self, relation_id: int, order_index: int) -> bool:
+    def update_area_relation_order(self, relation_id: int, order_index: int) -> bool:
         """
         Actualiza el orden de una relación de área
 
@@ -7490,7 +7490,7 @@ class DBManager:
             self.execute_update(query, (order_index, relation_id))
             return True
         except Exception as e:
-            logger.error(f"Error actualizando orden de relación {relation_id}: {e}")
+            logger.error(f"Error actualizando orden de relación de área {relation_id}: {e}")
             return False
 
     # ==================== COMPONENTES DE ÁREAS ====================
@@ -7569,7 +7569,7 @@ class DBManager:
             logger.error(f"Error actualizando contenido de componente {component_id}: {e}")
             return False
 
-    def update_component_order(self, component_id: int, order_index: int) -> bool:
+    def update_area_component_order(self, component_id: int, order_index: int) -> bool:
         """
         Actualiza el orden de un componente de área
 
@@ -7585,7 +7585,7 @@ class DBManager:
             self.execute_update(query, (order_index, component_id))
             return True
         except Exception as e:
-            logger.error(f"Error actualizando orden de componente {component_id}: {e}")
+            logger.error(f"Error actualizando orden de componente de área {component_id}: {e}")
             return False
 
     def get_area_content_ordered(self, area_id: int) -> List[Dict]:

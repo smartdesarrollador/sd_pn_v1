@@ -29,18 +29,20 @@ class ProjectRelationWidget(QWidget):
     move_down_requested = pyqtSignal(int)  # relation_id
     checkbox_changed = pyqtSignal(int, bool)  # relation_id, checked
 
-    def __init__(self, relation_data: dict, metadata: dict, view_mode: str = 'edit', parent=None):
+    def __init__(self, relation_data: dict, metadata: dict, view_mode: str = 'edit', show_ordering_arrows: bool = False, parent=None):
         """
         Args:
             relation_data: Diccionario con datos de la relación (id, project_id, entity_type, entity_id, description, order_index)
             metadata: Diccionario con metadata de la entidad (icon, name, content, type)
             view_mode: 'edit' o 'clean'
+            show_ordering_arrows: Si True, muestra las flechas de ordenamiento (solo en modo edit)
         """
         super().__init__(parent)
 
         self.relation_data = relation_data
         self.metadata = metadata
         self.view_mode = view_mode
+        self.show_ordering_arrows = show_ordering_arrows
 
         self.init_ui()
 
@@ -152,22 +154,23 @@ class ProjectRelationWidget(QWidget):
 
         # Controles de edición (solo en modo edición)
         if self.view_mode == 'edit':
-            # Botones de reordenamiento
-            move_up_btn = QPushButton("▲")
-            move_up_btn.setFixedSize(28, 28)
-            move_up_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            move_up_btn.setStyleSheet(self._get_control_button_style())
-            move_up_btn.setToolTip("Mover arriba")
-            move_up_btn.clicked.connect(self.on_move_up)
-            top_row.addWidget(move_up_btn)
+            # Botones de reordenamiento (solo si show_ordering_arrows es True)
+            if self.show_ordering_arrows:
+                move_up_btn = QPushButton("▲")
+                move_up_btn.setFixedSize(28, 28)
+                move_up_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+                move_up_btn.setStyleSheet(self._get_control_button_style())
+                move_up_btn.setToolTip("Mover arriba")
+                move_up_btn.clicked.connect(self.on_move_up)
+                top_row.addWidget(move_up_btn)
 
-            move_down_btn = QPushButton("▼")
-            move_down_btn.setFixedSize(28, 28)
-            move_down_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            move_down_btn.setStyleSheet(self._get_control_button_style())
-            move_down_btn.setToolTip("Mover abajo")
-            move_down_btn.clicked.connect(self.on_move_down)
-            top_row.addWidget(move_down_btn)
+                move_down_btn = QPushButton("▼")
+                move_down_btn.setFixedSize(28, 28)
+                move_down_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+                move_down_btn.setStyleSheet(self._get_control_button_style())
+                move_down_btn.setToolTip("Mover abajo")
+                move_down_btn.clicked.connect(self.on_move_down)
+                top_row.addWidget(move_down_btn)
 
             # Botón eliminar
             delete_btn = QPushButton("🗑️")

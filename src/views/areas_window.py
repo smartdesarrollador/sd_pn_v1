@@ -565,10 +565,12 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
         )
 
         # Crear widget especializado
+        # Solo mostrar flechas de ordenamiento cuando hay un filtro de tag activo
         widget = AreaRelationWidget(
             relation_data=relation,
             metadata=metadata,
             view_mode=self._view_mode,
+            show_ordering_arrows=bool(self.active_tag_filters),
             parent=self.canvas_widget
         )
 
@@ -799,7 +801,13 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
 
             # Obtener todo el contenido ordenado
             content = self.db.get_area_content_ordered(self.current_area_id)
-            logger.info(f"Total content items: {len(content)}")
+
+            # Si hay filtros de tags activos, trabajar solo con el contenido filtrado
+            if self.active_tag_filters:
+                content = self._filter_content_by_tags(content)
+                logger.info(f"Working with filtered content: {len(content)} items")
+            else:
+                logger.info(f"Total content items: {len(content)}")
 
             # Encontrar el índice del item
             current_index = None
@@ -833,18 +841,18 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
             # Determinar tipo del item actual
             if current_item.get('entity_type') is not None:
                 logger.info(f"Updating relation {current_item['id']} (type: {current_item['entity_type']}) to order {prev_item['order_index']}")
-                self.db.update_relation_order(current_item['id'], prev_item['order_index'])
+                self.db.update_area_relation_order(current_item['id'], prev_item['order_index'])
             elif current_item.get('component_type') is not None:
                 logger.info(f"Updating component {current_item['id']} (type: {current_item['component_type']}) to order {prev_item['order_index']}")
-                self.db.update_component_order(current_item['id'], prev_item['order_index'])
+                self.db.update_area_component_order(current_item['id'], prev_item['order_index'])
 
             # Determinar tipo del item anterior
             if prev_item.get('entity_type') is not None:
                 logger.info(f"Updating relation {prev_item['id']} (type: {prev_item['entity_type']}) to order {current_item['order_index']}")
-                self.db.update_relation_order(prev_item['id'], current_item['order_index'])
+                self.db.update_area_relation_order(prev_item['id'], current_item['order_index'])
             elif prev_item.get('component_type') is not None:
                 logger.info(f"Updating component {prev_item['id']} (type: {prev_item['component_type']}) to order {current_item['order_index']}")
-                self.db.update_component_order(prev_item['id'], current_item['order_index'])
+                self.db.update_area_component_order(prev_item['id'], current_item['order_index'])
 
             # Recargar área
             logger.info("Reloading area after move")
@@ -863,7 +871,13 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
 
             # Obtener todo el contenido ordenado
             content = self.db.get_area_content_ordered(self.current_area_id)
-            logger.info(f"Total content items: {len(content)}")
+
+            # Si hay filtros de tags activos, trabajar solo con el contenido filtrado
+            if self.active_tag_filters:
+                content = self._filter_content_by_tags(content)
+                logger.info(f"Working with filtered content: {len(content)} items")
+            else:
+                logger.info(f"Total content items: {len(content)}")
 
             # Encontrar el índice del item
             current_index = None
@@ -897,18 +911,18 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
             # Determinar tipo del item actual
             if current_item.get('entity_type') is not None:
                 logger.info(f"Updating relation {current_item['id']} (type: {current_item['entity_type']}) to order {next_item['order_index']}")
-                self.db.update_relation_order(current_item['id'], next_item['order_index'])
+                self.db.update_area_relation_order(current_item['id'], next_item['order_index'])
             elif current_item.get('component_type') is not None:
                 logger.info(f"Updating component {current_item['id']} (type: {current_item['component_type']}) to order {next_item['order_index']}")
-                self.db.update_component_order(current_item['id'], next_item['order_index'])
+                self.db.update_area_component_order(current_item['id'], next_item['order_index'])
 
             # Determinar tipo del item siguiente
             if next_item.get('entity_type') is not None:
                 logger.info(f"Updating relation {next_item['id']} (type: {next_item['entity_type']}) to order {current_item['order_index']}")
-                self.db.update_relation_order(next_item['id'], current_item['order_index'])
+                self.db.update_area_relation_order(next_item['id'], current_item['order_index'])
             elif next_item.get('component_type') is not None:
                 logger.info(f"Updating component {next_item['id']} (type: {next_item['component_type']}) to order {current_item['order_index']}")
-                self.db.update_component_order(next_item['id'], current_item['order_index'])
+                self.db.update_area_component_order(next_item['id'], current_item['order_index'])
 
             # Recargar área
             logger.info("Reloading area after move")
