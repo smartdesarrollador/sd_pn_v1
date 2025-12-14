@@ -1281,6 +1281,25 @@ class ProjectsWindow(QMainWindow, TaskbarMinimizableMixin):
 
         logger.info(f"Tag filters changed: {len(tag_ids)} tags, match_all={match_all}")
 
+        # Aplicar filtros en la vista completa
+        if hasattr(self, 'full_view_panel') and self.full_view_panel:
+            if tag_ids:
+                # Convertir IDs de tags a nombres
+                tag_names = []
+                for tag_id in tag_ids:
+                    tag = self.tag_manager.get_tag(tag_id)
+                    if tag:
+                        tag_names.append(tag.name)
+
+                # Aplicar filtros en vista completa
+                match_mode = 'AND' if match_all else 'OR'
+                self.full_view_panel.apply_filters(tag_names, match_mode)
+                logger.debug(f"Filtros aplicados en vista completa: {tag_names} ({match_mode})")
+            else:
+                # Limpiar filtros
+                self.full_view_panel.clear_filters()
+                logger.debug("Filtros limpiados en vista completa")
+
         # Recargar proyecto con filtros
         if self.current_project_id:
             self.load_project(self.current_project_id)
