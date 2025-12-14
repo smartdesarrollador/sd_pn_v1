@@ -1084,6 +1084,18 @@ class ProjectsWindow(QMainWindow, TaskbarMinimizableMixin):
         # Cargar proyecto en Vista Completa
         self.full_view_panel.load_project(self.current_project_id)
 
+        # Aplicar filtros activos si existen
+        if self.active_tag_filters:
+            tag_names = []
+            for tag_id in self.active_tag_filters:
+                tag = self.tag_manager.get_tag(tag_id)
+                if tag:
+                    tag_names.append(tag.name)
+
+            match_mode = 'AND' if self.tag_filter_match_all else 'OR'
+            self.full_view_panel.apply_filters(tag_names, match_mode)
+            logger.debug(f"Filtros aplicados automáticamente en vista completa: {tag_names}")
+
         # Cambiar tooltip del botón
         self.full_view_btn.setToolTip("Volver a vista anterior")
 

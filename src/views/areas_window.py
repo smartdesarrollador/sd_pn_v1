@@ -1103,6 +1103,18 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
         if self.current_area_id:
             self.full_view_panel.load_area(self.current_area_id)
 
+            # Aplicar filtros activos si existen
+            if self.active_tag_filters:
+                tag_names = []
+                for tag_id in self.active_tag_filters:
+                    tag = self.tag_manager.get_tag(tag_id)
+                    if tag:
+                        tag_names.append(tag.name)
+
+                match_mode = 'AND' if self.tag_filter_match_all else 'OR'
+                self.full_view_panel.apply_filters(tag_names, match_mode)
+                logger.debug(f"Filtros aplicados automáticamente en vista completa: {tag_names}")
+
     def add_element_to_area(self, entity_type: str):
         """Agrega un elemento al área"""
         if not self.current_area_id:
@@ -1286,15 +1298,28 @@ class AreasWindow(QMainWindow, TaskbarMinimizableMixin):
 
         logger.info(f"Tag filters changed: {len(tag_ids)} tags, match_all={match_all}")
 
-        # Recargar área con filtros
-        if self.current_area_id:
-            if self._view_mode == 'full':
-                # Aplicar filtros al panel de vista completa
-                tag_names = [self.tag_manager.get_tag_by_id(tid).name for tid in tag_ids if self.tag_manager.get_tag_by_id(tid)]
+        # Aplicar filtros en la vista completa
+        if hasattr(self, 'full_view_panel') and self.full_view_panel:
+            if tag_ids:
+                # Convertir IDs de tags a nombres
+                tag_names = []
+                for tag_id in tag_ids:
+                    tag = self.tag_manager.get_tag(tag_id)
+                    if tag:
+                        tag_names.append(tag.name)
+
+                # Aplicar filtros en vista completa
                 match_mode = 'AND' if match_all else 'OR'
                 self.full_view_panel.apply_filters(tag_names, match_mode)
+                logger.debug(f"Filtros aplicados en vista completa: {tag_names} ({match_mode})")
             else:
-                self.load_area(self.current_area_id)
+                # Limpiar filtros
+                self.full_view_panel.clear_filters()
+                logger.debug("Filtros limpiados en vista completa")
+
+        # Recargar área con filtros
+        if self.current_area_id:
+            self.load_area(self.current_area_id)
 
     def on_refresh_area(self):
         """Recarga el área actual sin cerrar la ventana"""
