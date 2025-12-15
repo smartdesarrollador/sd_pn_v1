@@ -258,105 +258,70 @@ Python fue creado por Guido van Rossum y lanzado por primera vez en 1991. El nom
                 # Aplicar orden filtrado si existe para este tag
                 tag_relations = self._apply_filtered_order(project_id, tag_id, tag_relations)
 
-                # Agrupar relaciones por tipo de entidad
+                # Procesar relaciones en el orden correcto (después de aplicar filtrado)
                 groups_data = []
 
-                # Procesar categorías
-                category_relations = [r for r in tag_relations if r['entity_type'] == 'category']
-                for rel in category_relations:
-                    category_id = rel['entity_id']
-                    # Obtener items de la categoría
-                    items = self.db.get_items_by_category(category_id)
+                for rel in tag_relations:
+                    entity_type = rel['entity_type']
+                    entity_id = rel['entity_id']
 
-                    if items:  # Solo agregar si tiene items
-                        # Obtener nombre de categoría
-                        category_name = self._get_category_name(category_id)
+                    if entity_type == 'category':
+                        items = self.db.get_items_by_category(entity_id)
+                        if items:
+                            category_name = self._get_category_name(entity_id)
+                            groups_data.append({
+                                'type': 'category',
+                                'name': category_name,
+                                'items': self._format_items(items)
+                            })
 
-                        groups_data.append({
-                            'type': 'category',
-                            'name': category_name,
-                            'items': self._format_items(items)
-                        })
+                    elif entity_type == 'list':
+                        items = self.db.get_items_by_lista(entity_id)
+                        if items:
+                            list_name = items[0].get('lista_name', 'Lista sin nombre') if items else 'Lista'
+                            groups_data.append({
+                                'type': 'list',
+                                'name': list_name,
+                                'items': self._format_items(items)
+                            })
 
-                # Procesar listas
-                list_relations = [r for r in tag_relations if r['entity_type'] == 'list']
-                for rel in list_relations:
-                    list_id = rel['entity_id']
-                    # Obtener items de la lista
-                    items = self.db.get_items_by_lista(list_id)
+                    elif entity_type == 'tag':
+                        items = self.db.get_items_by_tag_id(entity_id)
+                        if items:
+                            tag_name_item = self._get_item_tag_name(entity_id)
+                            groups_data.append({
+                                'type': 'tag',
+                                'name': tag_name_item,
+                                'items': self._format_items(items)
+                            })
 
-                    if items:  # Solo agregar si tiene items
-                        # Obtener nombre de lista
-                        list_name = items[0].get('lista_name', 'Lista sin nombre') if items else 'Lista'
+                    elif entity_type == 'table':
+                        items = self.db.get_items_by_table(entity_id)
+                        if items:
+                            table_name = self._get_table_name(entity_id)
+                            groups_data.append({
+                                'type': 'table',
+                                'name': table_name,
+                                'items': self._format_items(items)
+                            })
 
-                        groups_data.append({
-                            'type': 'list',
-                            'name': list_name,
-                            'items': self._format_items(items)
-                        })
+                    elif entity_type == 'item':
+                        item = self.db.get_item(entity_id)
+                        if item:
+                            groups_data.append({
+                                'type': 'item',
+                                'name': item.get('label', 'Item sin nombre'),
+                                'items': self._format_items([item])
+                            })
 
-                # Procesar tags de items
-                tag_relations_items = [r for r in tag_relations if r['entity_type'] == 'tag']
-                for rel in tag_relations_items:
-                    item_tag_id = rel['entity_id']
-                    # Obtener items con ese tag
-                    items = self.db.get_items_by_tag_id(item_tag_id)
-
-                    if items:  # Solo agregar si tiene items
-                        # Obtener nombre del tag
-                        tag_name_item = self._get_item_tag_name(item_tag_id)
-
-                        groups_data.append({
-                            'type': 'tag',
-                            'name': tag_name_item,
-                            'items': self._format_items(items)
-                        })
-
-                # Procesar tablas
-                table_relations = [r for r in tag_relations if r['entity_type'] == 'table']
-                for rel in table_relations:
-                    table_id = rel['entity_id']
-                    # Obtener items de la tabla
-                    items = self.db.get_items_by_table(table_id)
-
-                    if items:  # Solo agregar si tiene items
-                        # Obtener nombre de tabla
-                        table_name = self._get_table_name(table_id)
-
-                        groups_data.append({
-                            'type': 'table',
-                            'name': table_name,
-                            'items': self._format_items(items)
-                        })
-
-                # Procesar items individuales
-                item_relations = [r for r in tag_relations if r['entity_type'] == 'item']
-                for rel in item_relations:
-                    item_id = rel['entity_id']
-                    # Obtener el item individual
-                    item = self.db.get_item(item_id)
-
-                    if item:  # Solo agregar si existe
-                        groups_data.append({
-                            'type': 'item',
-                            'name': item.get('label', 'Item sin nombre'),
-                            'items': self._format_items([item])
-                        })
-
-                # Procesar procesos (sin items, solo mostrar el proceso)
-                process_relations = [r for r in tag_relations if r['entity_type'] == 'process']
-                for rel in process_relations:
-                    process_id = rel['entity_id']
-                    # Obtener el proceso
-                    process = self.db.get_process(process_id)
-
-                    if process:  # Solo agregar si existe
-                        # Los procesos no tienen items, solo mostrarlos como info
-                        groups_data.append({
-                            'type': 'process',
-                            'name': process.get('name', 'Proceso sin nombre'),
-                            'items': []  # Los procesos no tienen items
-                        })
+                    elif entity_type == 'process':
+                        process = self.db.get_process(entity_id)
+                        if process:
+                            groups_data.append({
+                                'type': 'process',
+                                'name': process.get('name', 'Proceso sin nombre'),
+                                'items': []
+                            })
 
                 # Solo agregar el tag si tiene grupos con items
                 if groups_data:

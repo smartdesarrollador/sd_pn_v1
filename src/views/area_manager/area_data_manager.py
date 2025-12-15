@@ -54,81 +54,68 @@ class AreaDataManager:
 
                 groups_data = []
 
-                category_relations = [r for r in tag_relations if r['entity_type'] == 'category']
-                for rel in category_relations:
-                    category_id = rel['entity_id']
-                    items = self.db.get_items_by_category(category_id)
+                # Procesar relaciones en el orden correcto (después de aplicar filtrado)
+                for rel in tag_relations:
+                    entity_type = rel['entity_type']
+                    entity_id = rel['entity_id']
 
-                    if items:
-                        category_name = self._get_category_name(category_id)
-                        groups_data.append({
-                            'type': 'category',
-                            'name': category_name,
-                            'items': self._format_items(items)
-                        })
+                    if entity_type == 'category':
+                        items = self.db.get_items_by_category(entity_id)
+                        if items:
+                            category_name = self._get_category_name(entity_id)
+                            groups_data.append({
+                                'type': 'category',
+                                'name': category_name,
+                                'items': self._format_items(items)
+                            })
 
-                list_relations = [r for r in tag_relations if r['entity_type'] == 'list']
-                for rel in list_relations:
-                    list_id = rel['entity_id']
-                    items = self.db.get_items_by_lista(list_id)
+                    elif entity_type == 'list':
+                        items = self.db.get_items_by_lista(entity_id)
+                        if items:
+                            list_name = items[0].get('lista_name', 'Lista sin nombre') if items else 'Lista'
+                            groups_data.append({
+                                'type': 'list',
+                                'name': list_name,
+                                'items': self._format_items(items)
+                            })
 
-                    if items:
-                        list_name = items[0].get('lista_name', 'Lista sin nombre') if items else 'Lista'
-                        groups_data.append({
-                            'type': 'list',
-                            'name': list_name,
-                            'items': self._format_items(items)
-                        })
+                    elif entity_type == 'tag':
+                        items = self.db.get_items_by_tag_id(entity_id)
+                        if items:
+                            tag_name_item = self._get_item_tag_name(entity_id)
+                            groups_data.append({
+                                'type': 'tag',
+                                'name': tag_name_item,
+                                'items': self._format_items(items)
+                            })
 
-                tag_relations_items = [r for r in tag_relations if r['entity_type'] == 'tag']
-                for rel in tag_relations_items:
-                    item_tag_id = rel['entity_id']
-                    items = self.db.get_items_by_tag_id(item_tag_id)
+                    elif entity_type == 'table':
+                        items = self.db.get_items_by_table(entity_id)
+                        if items:
+                            table_name = self._get_table_name(entity_id)
+                            groups_data.append({
+                                'type': 'table',
+                                'name': table_name,
+                                'items': self._format_items(items)
+                            })
 
-                    if items:
-                        tag_name_item = self._get_item_tag_name(item_tag_id)
-                        groups_data.append({
-                            'type': 'tag',
-                            'name': tag_name_item,
-                            'items': self._format_items(items)
-                        })
+                    elif entity_type == 'item':
+                        item = self.db.get_item(entity_id)
+                        if item:
+                            groups_data.append({
+                                'type': 'item',
+                                'name': item.get('label', 'Item sin nombre'),
+                                'items': self._format_items([item])
+                            })
 
-                table_relations = [r for r in tag_relations if r['entity_type'] == 'table']
-                for rel in table_relations:
-                    table_id = rel['entity_id']
-                    items = self.db.get_items_by_table(table_id)
-
-                    if items:
-                        table_name = self._get_table_name(table_id)
-                        groups_data.append({
-                            'type': 'table',
-                            'name': table_name,
-                            'items': self._format_items(items)
-                        })
-
-                item_relations = [r for r in tag_relations if r['entity_type'] == 'item']
-                for rel in item_relations:
-                    item_id = rel['entity_id']
-                    item = self.db.get_item(item_id)
-
-                    if item:
-                        groups_data.append({
-                            'type': 'item',
-                            'name': item.get('label', 'Item sin nombre'),
-                            'items': self._format_items([item])
-                        })
-
-                process_relations = [r for r in tag_relations if r['entity_type'] == 'process']
-                for rel in process_relations:
-                    process_id = rel['entity_id']
-                    process = self.db.get_process(process_id)
-
-                    if process:
-                        groups_data.append({
-                            'type': 'process',
-                            'name': process.get('name', 'Proceso sin nombre'),
-                            'items': []
-                        })
+                    elif entity_type == 'process':
+                        process = self.db.get_process(entity_id)
+                        if process:
+                            groups_data.append({
+                                'type': 'process',
+                                'name': process.get('name', 'Proceso sin nombre'),
+                                'items': []
+                            })
 
                 if groups_data:
                     tags_data.append({
@@ -181,12 +168,23 @@ class AreaDataManager:
         Returns:
             Lista de relaciones ordenadas según orden filtrado o global
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
+            logger.debug(f"Aplicando orden filtrado para área {area_id}, tag {filter_tag_id}")
+            logger.debug(f"Número de relaciones: {len(tag_relations)}")
+
             # Obtener orden filtrado para este tag
             filtered_orders = self.db.get_area_filtered_order(area_id, filter_tag_id)
 
+            logger.debug(f"Órdenes filtrados encontrados: {len(filtered_orders)}")
+            if filtered_orders:
+                logger.debug(f"Órdenes: {filtered_orders}")
+
             if not filtered_orders:
                 # No hay orden personalizado, usar orden global
+                logger.debug("No hay orden personalizado, usando orden global")
                 return sorted(tag_relations, key=lambda x: x.get('order_index', 0))
 
             # Separar relaciones con orden personalizado de las que no
@@ -198,10 +196,15 @@ class AreaDataManager:
                 element_id = rel['id']
                 key = (element_type, element_id)
 
+                logger.debug(f"Procesando relación {element_id}, buscando key {key}")
+
                 if key in filtered_orders:
-                    ordered_relations.append((filtered_orders[key], rel))
+                    order_idx = filtered_orders[key]
+                    ordered_relations.append((order_idx, rel))
+                    logger.debug(f"  -> Encontrado en filtered_orders con orden {order_idx}")
                 else:
                     unordered_relations.append(rel)
+                    logger.debug(f"  -> No encontrado, usando orden global {rel.get('order_index', 0)}")
 
             # Ordenar relaciones por order_index filtrado
             ordered_relations.sort(key=lambda x: x[0])
@@ -211,12 +214,16 @@ class AreaDataManager:
             unordered_relations.sort(key=lambda x: x.get('order_index', 0))
             result.extend(unordered_relations)
 
+            logger.debug(f"Resultado final: {len(result)} relaciones")
+            for idx, rel in enumerate(result):
+                logger.debug(f"  {idx}: relation_id={rel['id']}, entity_type={rel.get('entity_type')}")
+
             return result
 
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error aplicando orden filtrado en área: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             # En caso de error, usar orden global
             return sorted(tag_relations, key=lambda x: x.get('order_index', 0))
 
