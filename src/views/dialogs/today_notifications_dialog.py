@@ -158,13 +158,15 @@ class TodayNotificationsDialog(QDialog):
 
         # Time and title
         time_str = event.get('event_datetime', '')[11:16] if event.get('event_datetime') else ''
-        title = QLabel(f"⏰ {time_str} - {event.get('event_title', 'Sin título')}")
+        title_text = event.get('title') or event.get('item_label') or 'Sin título'
+        title = QLabel(f"⏰ {time_str} - {title_text}")
         title.setObjectName("itemTitle")
         layout.addWidget(title)
 
         # Description
-        if event.get('event_description'):
-            desc = QLabel(event['event_description'])
+        description = event.get('description') or event.get('item_content')
+        if description:
+            desc = QLabel(description)
             desc.setObjectName("itemDesc")
             desc.setWordWrap(True)
             layout.addWidget(desc)
@@ -201,13 +203,15 @@ class TodayNotificationsDialog(QDialog):
 
         # Time and title
         time_str = alert.get('alert_datetime', '')[11:16] if alert.get('alert_datetime') else ''
-        title = QLabel(f"⏰ {time_str} - {alert.get('alert_title', 'Sin título')}")
+        title_text = alert.get('alert_title') or alert.get('item_label') or 'Sin título'
+        title = QLabel(f"⏰ {time_str} - {title_text}")
         title.setObjectName("itemTitle")
         layout.addWidget(title)
 
         # Message
-        if alert.get('alert_message'):
-            msg = QLabel(alert['alert_message'])
+        message = alert.get('alert_message') or alert.get('item_content')
+        if message:
+            msg = QLabel(message)
             msg.setObjectName("itemDesc")
             msg.setWordWrap(True)
             layout.addWidget(msg)
