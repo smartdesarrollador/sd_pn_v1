@@ -76,6 +76,14 @@ class UniversalSearchDialog(QDialog):
         self.setWindowTitle("BÚSQUEDA UNIVERSAL")
         self.setMinimumSize(1400, 800)
 
+        # Configurar botones de la ventana (minimizar, maximizar, cerrar)
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.WindowMaximizeButtonHint |
+            Qt.WindowType.WindowCloseButtonHint
+        )
+
         # Layout principal
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(0)
@@ -555,6 +563,8 @@ class UniversalSearchDialog(QDialog):
         finally:
             # Ocultar indicador de carga
             self.hide_loading()
+            # Mantener el foco en el campo de búsqueda
+            self.search_input.setFocus()
 
     def load_initial_data(self):
         """Carga datos iniciales (items recientes)"""
@@ -573,6 +583,8 @@ class UniversalSearchDialog(QDialog):
             logger.error(f"Error cargando items recientes: {e}", exc_info=True)
         finally:
             self.hide_loading()
+            # Mantener el foco en el campo de búsqueda
+            self.search_input.setFocus()
 
     def update_results_table(self, results):
         """Actualiza la tabla con los resultados"""
@@ -737,6 +749,8 @@ class UniversalSearchDialog(QDialog):
             logger.error(f"Error cargando items más usados: {e}", exc_info=True)
         finally:
             self.hide_loading()
+            # Mantener el foco en el campo de búsqueda
+            self.search_input.setFocus()
 
     def load_items_with_tags(self):
         """Carga items con tags"""
@@ -751,6 +765,8 @@ class UniversalSearchDialog(QDialog):
             logger.error(f"Error cargando items con tags: {e}", exc_info=True)
         finally:
             self.hide_loading()
+            # Mantener el foco en el campo de búsqueda
+            self.search_input.setFocus()
 
     def on_filter_changed(self):
         """Handler cuando cambian los filtros - con debouncing"""
